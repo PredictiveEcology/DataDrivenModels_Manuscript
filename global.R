@@ -3,7 +3,7 @@ repos <- c("predictiveecology.r-universe.dev", getOption("repos"))
 if (tryCatch(packageVersion("SpaDES.project") < "0.1.1", error = function(x) TRUE)) {
   install.packages(c("SpaDES.project", "Require"), repos = repos)
 }
-
+#need cmake
 projPath <- "~/git/DataDrivenModels_Manuscript"
 customOpts <- list(gargle_oauth_email = "ianmseddy@gmail.com",
              gargle_oauth_cache = "~/google_drive_cache",
@@ -25,13 +25,8 @@ inSim <- SpaDES.project::setupProject(
               "PredictiveEcology/Biomass_speciesParameters",
               "PredictiveEcology/Biomass_core"),
   options = customOpts, 
-  ),
   times = list(start = 2011, end = 2021),
-  loadOrder = unlist(modules), #load order must be passed or BBDP will be sourced prior to fsDPF.
   #also canClimateData must come before fireSense
-  climateVariablesForFire = list(ignition = c("CMDsm"),
-                                 spread = c("CMDsm")),
-  functions = "ianmseddy/NEBC@main/R/studyAreaFuns.R",
   # studyArea = {
   #   sa <- bcdata::
   #   sa <- sa[sa$FRU == FRU,]
