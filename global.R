@@ -4,6 +4,7 @@ if (tryCatch(packageVersion("SpaDES.project") < "0.1.1", error = function(x) TRU
   install.packages(c("SpaDES.project", "Require"), repos = repos)
 }
 #need cmake
+
 projPath <- "~/git/DataDrivenModels_Manuscript"
 customOpts <- list(gargle_oauth_email = "ianmseddy@gmail.com",
              gargle_oauth_cache = "~/google_drive_cache",
@@ -11,9 +12,8 @@ customOpts <- list(gargle_oauth_email = "ianmseddy@gmail.com",
              # , reproducible.inputPaths = "~/data"
              )
 #usethis failed to install first time around...not sure why - 
-
 studyAreaEcozone <- "Montane Cordillera"
-#can also be Montane Cordillera or Boreal PLain - note the typo
+studyAreaName <- "Fraser_Basin_district980"
 
 #TODO: 
 #write as experiment call - with single, focal, and pairwise fitting for sppParams
@@ -42,25 +42,18 @@ inSim <- SpaDES.project::setupProject(
               , "PredictiveEcology/Biomass_core@development"
               ),
   options = customOpts, 
-  times = list(start = 2011, end = 2012),
+  times = list(start = 2011, end = 2061),
   studyArea = {
-    sa <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/region/ecoregion_shp.zip", 
+    sa <- reproducible::prepInputs(url = "hhttps://sis.agr.gc.ca/cansis/nsdb/ecostrat/district/ecodistrict_shp.zip", 
                                    destinationPath = paths$inputPath, 
                                    fun = "terra::vect"
                                    )
     targetCRS <- terra::crs("EPSG:3348")
     # EPSG:3348 (NAD83(CSRS) / Statistics Canada Lambert) are commonly used for large areas of Canada. 
-    # c("Clear Hills Upland") Boreal Plains - Ecoregion 137
-    # c("Fraser Plateau") Montane Cordillera Ecoregion 202
-    # c("Lake of the Woods") Boreal Shield Ecoregion 91
-    ecodistrictName <- switch(studyAreaEcozone, 
-                              "Boreal Shield" = {"Lake of the Woods"},
-                              "Montane Cordillera" = {"Fraser Plateau"},
-                              "Boreal PLain" = {"Clear Hills Upland"})
-    sa <- sa[sa$REGION_NAM == ecodistrictName,] |>
+    
+    sa <- sa[sa$ECODISTRIC == 980,] |>
       terra::project(targetCRS) 
-    #consider buffering? not sure if we have disturbances yet
-    #sa <- terra::buffer(sa, 5000)
+    #980 is in the Fraser Basin ecoregion - it conveniently has no Douglas-fir
     return(sa)
   },  
   rasterToMatch = {
@@ -82,13 +75,15 @@ inSim <- SpaDES.project::setupProject(
   argsForFactorial = {
     a <- list(cohortsPerPixel = 1:2,
               growthcurve = seq(0.65, 0.85, 0.02),
-              mortalityshape = seq(18, 25, 1),
+              mortalityshape = seq(17, 25, 2), 
               longevity = seq(125, 450, 25), 
-              mANPPproportion = seq(3.0, 6.0, 0.3))
+              mANPPproportion = seq(3.0, 6.0, 0.3)) #this will produce a data.table with half a billion rows... 
   },
   params = list(
     .globals = list(
-      .studyAreaName = gsub(pattern = " ", replace = "", studyAreaEcozone), 
+      dataYear = 2011,
+      .plots = "png",
+      .studyAreaName = studyAreaName,
       minCohortBiomass = 1 #for plotting purposes - so many growth curves lose their tail if we remove B < 10
     )
   )
