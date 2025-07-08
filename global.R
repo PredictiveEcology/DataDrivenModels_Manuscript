@@ -17,7 +17,7 @@ studyAreaEcozone <- "Montane Cordillera"
 studyAreaName <- "Fraser_Basin_district980"
 
 
-simFocal <- SpaDES.project::setupProject(
+simProject <- SpaDES.project::setupProject(
   packages = c("usethis", "googledrive", "httr2", "RCurl", "XML", "bcdata"),
   useGit=  TRUE,
   require = c("PredictiveEcology/reproducible@AI (>= 2.1.2.9050)", 
@@ -34,11 +34,7 @@ simFocal <- SpaDES.project::setupProject(
               , "PredictiveEcology/Biomass_speciesParameters@development"
               , "PredictiveEcology/Biomass_core@development"
   ),
-  options = c(customOpts, 
-              'spades.saveFileExtensions' = data.frame(fun = c("saveRDS", "writeRaster"), 
-                                                       package = c("base", "terra"), 
-                                                       exts = c("rds", "tif"))),
-  times = list(start = 2011, end = 2031),
+  times = list(start = 2011, end = 2091),
   studyArea = {
     sa <- reproducible::prepInputs(url = "hhttps://sis.agr.gc.ca/cansis/nsdb/ecostrat/district/ecodistrict_shp.zip", 
                                    destinationPath = paths$inputPath, 
@@ -50,16 +46,23 @@ simFocal <- SpaDES.project::setupProject(
     sa <- sa[sa$ECODISTRIC == 980,] |>
       terra::project(targetCRS) 
     #980 is in the Fraser Basin ecoregion - it conveniently has no Douglas-fir
+    #buffer it for dispersal
+    sa <- terra::buffer(sa, 5000)
     return(sa)
   },  
   rasterToMatch = {
     rtm <- terra::rast(sa, res = c(250, 250), vals = 1) |>
       reproducible::postProcess(maskTo = sa)
   },
-  studyAreaANPP = {
-    ecozones <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/zone/ecozone_shp.zip", 
-                                         destinationPath = paths$inputPath)
-    ecozones <- ecozones[ecozones$ZONE_NAME == studyAreaEcozone,]
+  # studyAreaANPP = {
+  #   ecozones <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/zone/ecozone_shp.zip", 
+  #                                        destinationPath = paths$inputPath)
+  #   ecozones <- ecozones[ecozones$ZONE_NAME == studyAreaEcozone,]
+  # },
+  ecoregionLayer = {
+    subzone <- bcdata::bcdc_get_data("f358a53b-ffde-4830-a325-a5a03ff672c3") |>
+      reproducible::postProcess(to = studyArea)
+    return(subzone)
   },
   sppEquiv = {
     spp <- LandR::speciesInStudyArea(studyArea = studyArea,
@@ -67,6 +70,8 @@ simFocal <- SpaDES.project::setupProject(
     sppEquiv <- LandR::sppEquivalencies_CA[KNN %in% spp$speciesList,]
     sppEquiv <- sppEquiv[LANDIS_traits != "",]
     sppEquiv <- sppEquiv[grep(pattern = "Spp", x = sppEquiv$KNN, invert = TRUE),]
+    sppEquiv[LandR == "Popu_bal", LandR := "Popu_tre"]
+    #there is insignificant balsam poplar in the montane cordillera, so combine it with aspen
   },
   argsForFactorial = {
     a <- list(cohortsPerPixel = 1:2,
@@ -77,6 +82,7 @@ simFocal <- SpaDES.project::setupProject(
   },
   params = list(
     .globals = list(
+      .useCache = ".inputObjects",
       dataYear = 2011,
       .plots = "png",
       .studyAreaName = studyAreaName,
@@ -85,29 +91,39 @@ simFocal <- SpaDES.project::setupProject(
     Biomass_speciesParameters = list(
       standAgesForFitting = c(21, 121), 
       quantileAgeSubset = 99
-      
+    ), 
+    Biomass_core = list(
+      useCache = ".inputObjects"
+    ), 
+    Biomass_borealDataPrep = list(
+      ecoregionLayerField = "SUBZONE"
     )
   ), 
-  outputs = rbind(
-      data.frame(objectName = "pixelGroupMap", fun = "terra::writeRaster", 
+  outputs =  {
+    outputs <- rbind(
+      data.table(objectName = "pixelGroupMap", 
                  saveTime = c(seq(times$start, times$end, 5)), 
-                 arguments = list(overwrite = TRUE), ext = "tif"), 
-      data.frame(objectName = "cohortData", fun = "saveRDS", 
-                 saveTime = c(seq(times$start, times$end, 5)), 
-                 arguments = list(overwrite = TRUE), ext = "tif"),
-      data.frame(objectName = c("species"), 
-                 fun = "saveRDS", saveTime = times$end, 
-                 arguments = list(overwrite = TRUE), ext = "rds"), 
-      data.frame(objectName = c("speciesEcoregion"), 
-                 fun = "saveRDS", saveTime = times$end, 
-                 arguments = list(overwrite = TRUE), ext = "rds")
+                 exts = ".tif", fun = "writeRaster", package = "terra"), 
+      data.table(objectName = "cohortData", 
+                 saveTime = c(seq(times$start, times$end, 5))), 
+      data.table(objectName = "speciesEcoregion", 
+                 saveTime = times$end), 
+      data.table(objectName = "species", 
+                 saveTime = times$end),
+      fill = TRUE
     )
+    outputs[is.na(fun), c("exts", "fun", "package") := .("rds", "saveRDS", "base")]
+    outputs
+  }
 )
 
-#experiment args - run name, outputs, 
+#####experiment args #### 
+inSim <- do.call(what = SpaDES.core::simInit, simProject)
 
+SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_all")
 
-simFocalInit <- do.call(simInit, simFocal)
+inSim@params$Biomass_speciesParameters$speciesFittingApproach <- "single"
 
+SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_all")
 
 
