@@ -3,7 +3,7 @@ repos <- c("predictiveecology.r-universe.dev", getOption("repos"))
 if (tryCatch(packageVersion("SpaDES.project") < "0.1.1", error = function(x) TRUE)) {
   install.packages(c("SpaDES.project", "Require"), repos = repos)
 }
-#need cmake
+#needed cmake
 
 #### Settings users will want to set themselves ####
 projPath <- "~/git/DataDrivenModels_Manuscript"
@@ -20,8 +20,8 @@ studyAreaName <- "Fraser_Basin_district980"
 simProject <- SpaDES.project::setupProject(
   packages = c("usethis", "googledrive", "httr2", "RCurl", "XML", "bcdata"),
   useGit=  TRUE,
-  require = c("PredictiveEcology/reproducible@AI (>= 2.1.2.9050)", 
-              "PredictiveEcology/SpaDES.core@box (>= 2.1.5.9022)", 
+  require = c("PredictiveEcology/reproducible@AI (>= 2.1.2.9050)",
+              "PredictiveEcology/SpaDES.core@box (>= 2.1.5.9022)",
               "PredictiveEcology/SpaDES.experiment (>= 0.0.2.9005)"),
   paths = list(projectPath = projPath,
                modulePath = file.path("modules"),
@@ -29,10 +29,11 @@ simProject <- SpaDES.project::setupProject(
                scratchPath = tempdir(),
                inputPath = file.path("inputs"),
                outputPath = file.path("outputs")),
-  modules = c("PredictiveEcology/Biomass_speciesFactorial@development"
-              , "PredictiveEcology/Biomass_borealDataPrep@development"
-              , "PredictiveEcology/Biomass_speciesParameters@development"
-              , "PredictiveEcology/Biomass_core@development"
+  modules = c(
+    "PredictiveEcology/Biomass_speciesFactorial@development"
+    , "PredictiveEcology/Biomass_borealDataPrep@development"
+    , "PredictiveEcology/Biomass_speciesParameters@fixingSingle"
+    , "PredictiveEcology/Biomass_core@development"
   ),
   times = list(start = 2011, end = 2091),
   studyArea = {
@@ -43,7 +44,7 @@ simProject <- SpaDES.project::setupProject(
     targetCRS <- terra::crs("EPSG:3348")
     # EPSG:3348 (NAD83(CSRS) / Statistics Canada Lambert) are commonly used for large areas of Canada. 
     
-    sa <- sa[sa$ECODISTRIC == 980,] |>
+    sa <- sa[sa$ECODISTRIC == 986,] |> #980 is like 90% pine
       terra::project(targetCRS) 
     #980 is in the Fraser Basin ecoregion - it conveniently has no Douglas-fir
     #buffer it for dispersal
@@ -54,13 +55,15 @@ simProject <- SpaDES.project::setupProject(
     rtm <- terra::rast(sa, res = c(250, 250), vals = 1) |>
       reproducible::postProcess(maskTo = sa)
   },
-  # studyAreaANPP = {
-  #   ecozones <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/zone/ecozone_shp.zip", 
-  #                                        destinationPath = paths$inputPath)
-  #   ecozones <- ecozones[ecozones$ZONE_NAME == studyAreaEcozone,]
-  # },
+  studyAreaANPP = {
+    ecozones <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/zone/ecozone_shp.zip",
+                                         destinationPath = paths$inputPath)
+    ecozones <- ecozones[ecozones$ZONE_NAME == studyAreaEcozone,]
+  },
   ecoregionLayer = {
-    subzone <- bcdata::bcdc_get_data("f358a53b-ffde-4830-a325-a5a03ff672c3") |>
+    subzone <- Cache(bcdata::bcdc_get_data, 
+                     record = "f358a53b-ffde-4830-a325-a5a03ff672c3", 
+                     userTags = c("BECs")) |>
       reproducible::postProcess(to = studyArea)
     return(subzone)
   },
@@ -75,14 +78,13 @@ simProject <- SpaDES.project::setupProject(
   },
   argsForFactorial = {
     a <- list(cohortsPerPixel = 1:2,
-              growthcurve = seq(0.65, 0.85, 0.02),
-              mortalityshape = seq(19, 25, 2), 
-              longevity = seq(150, 600, 50), 
-              mANPPproportion = seq(3.3, 6.3, 0.3)) 
+              growthcurve = seq(0.1, 0.9, 0.05),
+              mortalityshape = seq(21, 25, 2), 
+              longevity = seq(150,550, 50), 
+              mANPPproportion = seq(3.3, 6.6, 0.3)) 
   },
   params = list(
     .globals = list(
-      .useCache = ".inputObjects",
       dataYear = 2011,
       .plots = "png",
       .studyAreaName = studyAreaName,
@@ -90,11 +92,13 @@ simProject <- SpaDES.project::setupProject(
     ), 
     Biomass_speciesParameters = list(
       standAgesForFitting = c(21, 121), 
-      quantileAgeSubset = 99
+      quantileAgeSubset = 99, 
+      .useCache = FALSE
+      
     ), 
     Biomass_core = list(
-      useCache = ".inputObjects"
-    ), 
+      .useCache = ".inputObjects"
+    ),
     Biomass_borealDataPrep = list(
       ecoregionLayerField = "SUBZONE"
     )
@@ -103,7 +107,7 @@ simProject <- SpaDES.project::setupProject(
     outputs <- rbind(
       data.table(objectName = "pixelGroupMap", 
                  saveTime = c(seq(times$start, times$end, 5)), 
-                 exts = ".tif", fun = "writeRaster", package = "terra"), 
+                 exts = ".tif", fun = "writeRaster", package = "raster"), 
       data.table(objectName = "cohortData", 
                  saveTime = c(seq(times$start, times$end, 5))), 
       data.table(objectName = "speciesEcoregion", 
@@ -113,17 +117,32 @@ simProject <- SpaDES.project::setupProject(
       fill = TRUE
     )
     outputs[is.na(fun), c("exts", "fun", "package") := .("rds", "saveRDS", "base")]
+    outputs <- as.data.frame(outputs)
+    # outputs$arguments <- list("writeRaster" = list("overwrite" = TRUE))
     outputs
   }
 )
 
 #####experiment args #### 
-inSim <- do.call(what = SpaDES.core::simInit, simProject)
+inSim <- do.call(simInit, simProject)
 
-SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_all")
-
-inSim@params$Biomass_speciesParameters$speciesFittingApproach <- "single"
-
-SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_all")
+SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_MC")
 
 
+inSim$params$Biomass_speciesParameters$speciesFittingApproach <- "single"
+inSim <- do.call(simInit, simProject)
+
+SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_MC")
+
+
+#
+simProject$params$Biomass_speciesParameters$speciesFittingApproach <- "focal"
+out <- simInitAndSpades2(simProject)
+
+
+# cdRep1 <- readRDS("outputs/focalFitting_all/rep1/cohortData_year2051.rds")
+# cdRep2 <- readRDS("outputs/focalFitting_all/rep2/cohortData_year2051.rds") 
+# pgRep1 <- rast("outputs/focalFitting_all/rep1/pixelGroupMap_year2051.tif")
+# pgRep2 <- rast("outputs/focalFitting_all/rep2/pixelGroupMap_year2051.tif")
+# cdRep1[pixelGroup %in% pgRep1[30000],]
+# cdRep2[pixelGroup %in% pgRep2[30000],]

@@ -1,7 +1,7 @@
-quickSpeciesComp
+#quickSpeciesComp
 
-singleRep1 <- readRDS("outputs/singleFitting/rep1/species_year2091.rds")
-multiRep1 <- readRDS("outputs/focalFitting/rep1/species_year2091.rds")
+singleRep1 <- readRDS("outputs/singleFitting_all/rep1/species_year2091.rds")
+multiRep1 <- readRDS("outputs/focalFitting_all/rep1/species_year2091.rds")
 
 singleRep1[, source := "single"]
 multiRep1[, source := "focal"]
@@ -18,3 +18,6 @@ gg <- ggplot(speciesRep1, aes(y = value, x = species, fill = source)) +
   theme_bw() + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 gg
+
+setkey(speciesRep1, species, trait)
+speciesRep1
