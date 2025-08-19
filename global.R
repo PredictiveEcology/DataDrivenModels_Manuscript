@@ -6,20 +6,27 @@ if (tryCatch(packageVersion("SpaDES.project") < "0.1.1", error = function(x) TRU
 #needed cmake
 
 #### Settings users will want to set themselves ####
+
 projPath <- "~/git/DataDrivenModels_Manuscript"
-options(gargle_oauth_email = "ianmseddy@gmail.com",
-             gargle_oauth_cache = "~/google_drive_cache",
-             gargle_oauth_client_type = "web"
-             )
- 
+
+options(gargle_oauth_email = "ianmseddy@gmail.com")
+
+if (grep("Windows", osVersion)) {
+  options(gargle_oauth_client_type = "installed", 
+          gargle_oauth_cache = "../../google_drive_cache")
+} else {
+  options(gargle_oauth_cache = "~/google_drive_cache",
+          gargle_oauth_client_type = "web")
+}
+
 ##### Set up ####
 studyAreaEcozone <- "Montane Cordillera"
 studyAreaName <- "Fraser_Basin_district980"
 
-
+projPath <- getwd()
 simProject <- SpaDES.project::setupProject(
   packages = c("usethis", "googledrive", "httr2", "RCurl", "XML", "bcdata"),
-  useGit=  TRUE,
+  useGit = TRUE,
   require = c("PredictiveEcology/reproducible@AI (>= 2.1.2.9050)",
               "PredictiveEcology/SpaDES.core@box (>= 2.1.5.9022)",
               "PredictiveEcology/SpaDES.experiment (>= 0.0.2.9005)"),
