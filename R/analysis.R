@@ -1,12 +1,15 @@
 #quickSpeciesComp
 
-singleRep1 <- readRDS("outputs/singleFitting_all/rep1/species_year2091.rds")
-multiRep1 <- readRDS("outputs/focalFitting_all/rep1/species_year2091.rds")
+singleOutputPath <- "outputs/singleFitting_MC"
+focalOutputPath <- "outputs/focalFitting_MC"
+
+singleRep1 <- readRDS(file.path(singleOutputPath, "rep1/species_year2091.rds"))
+focalRep1 <- readRDS(file.path(focalOutputPath, "rep1/species_year2091.rds"))
 
 singleRep1[, source := "single"]
-multiRep1[, source := "focal"]
+focalRep1[, source := "focal"]
 
-speciesRep1 <- rbind(singleRep1, multiRep1) |>
+speciesRep1 <- rbind(singleRep1, focalRep1) |>
   data.table::melt.data.table(id.vars = c("species", "source"),
                               measure.vars = c("mANPPproportion", "growthcurve", "inflationFactor", "mortalityshape"), 
                               variable.name = "trait", value.name = "value")

@@ -93,7 +93,7 @@ simProject <- SpaDES.project::setupProject(
     Biomass_speciesParameters = list(
       standAgesForFitting = c(21, 121), 
       quantileAgeSubset = 99, 
-      .useCache = FALSE
+      .useCache = ".inputObjects"
       
     ), 
     Biomass_core = list(
