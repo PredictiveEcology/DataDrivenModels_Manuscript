@@ -137,7 +137,6 @@ SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_
 
 #
 simProject$params$Biomass_speciesParameters$speciesFittingApproach <- "focal"
-out <- simInitAndSpades2(simProject)
 
 
 # cdRep1 <- readRDS("outputs/focalFitting_all/rep1/cohortData_year2051.rds")
