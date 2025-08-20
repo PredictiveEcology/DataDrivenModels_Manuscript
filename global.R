@@ -11,7 +11,7 @@ projPath <- "~/git/DataDrivenModels_Manuscript"
 
 options(gargle_oauth_email = "ianmseddy@gmail.com")
 
-if (grep("Windows", osVersion)) {
+if (length(grep("Windows", osVersion)) != 0) {
   options(gargle_oauth_client_type = "installed", 
           gargle_oauth_cache = "../../google_drive_cache")
 } else {
@@ -132,12 +132,10 @@ simProject <- SpaDES.project::setupProject(
 
 #####experiment args #### 
 inSim <- do.call(simInit, simProject)
-
 SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_MC")
 
 
 inSim$params$Biomass_speciesParameters$speciesFittingApproach <- "single"
-
 SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_MC")
 
 
