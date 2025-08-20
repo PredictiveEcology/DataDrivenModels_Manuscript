@@ -7,6 +7,8 @@ if (tryCatch(packageVersion("SpaDES.project") < "0.1.1", error = function(x) TRU
 
 #### Settings users will want to set themselves ####
 
+projPath <- "~/git/DataDrivenModels_Manuscript"
+
 options(gargle_oauth_email = "ianmseddy@gmail.com")
 
 if (grep("Windows", osVersion)) {
@@ -135,7 +137,6 @@ SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_M
 
 
 inSim$params$Biomass_speciesParameters$speciesFittingApproach <- "single"
-inSim <- do.call(simInit, simProject)
 
 SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_MC")
 
