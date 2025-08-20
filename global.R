@@ -42,7 +42,7 @@ simProject <- SpaDES.project::setupProject(
   ),
   times = list(start = 2011, end = 2091),
   studyArea = {
-    sa <- reproducible::prepInputs(url = "hhttps://sis.agr.gc.ca/cansis/nsdb/ecostrat/district/ecodistrict_shp.zip", 
+    sa <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/district/ecodistrict_shp.zip", 
                                    destinationPath = paths$inputPath, 
                                    fun = "terra::vect"
     )
