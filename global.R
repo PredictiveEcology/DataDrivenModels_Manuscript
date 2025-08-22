@@ -135,13 +135,8 @@ inSim <- do.call(simInit, simProject)
 SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_MC")
 
 
-inSim$params$Biomass_speciesParameters$speciesFittingApproach <- "single"
+inSim@params$Biomass_speciesParameters$speciesFittingApproach <- "single"
 SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_MC")
-
-
-#
-simProject$params$Biomass_speciesParameters$speciesFittingApproach <- "focal"
-
 
 # cdRep1 <- readRDS("outputs/focalFitting_all/rep1/cohortData_year2051.rds")
 # cdRep2 <- readRDS("outputs/focalFitting_all/rep2/cohortData_year2051.rds") 
