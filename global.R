@@ -24,9 +24,10 @@ studyAreaEcozone <- "Montane Cordillera"
 studyAreaName <- "Fraser_Basin_district980"
 
 projPath <- getwd()
+
 simProject <- SpaDES.project::setupProject(
   packages = c("usethis", "googledrive", "httr2", "RCurl", "XML", "bcdata"),
-  useGit = TRUE,
+  useGit = FALSE,
   require = c("PredictiveEcology/reproducible@AI (>= 2.1.2.9050)",
               "PredictiveEcology/SpaDES.core@box (>= 2.1.5.9022)",
               "PredictiveEcology/SpaDES.experiment (>= 0.0.2.9005)"),
@@ -42,7 +43,7 @@ simProject <- SpaDES.project::setupProject(
     , "PredictiveEcology/Biomass_speciesParameters@fixingSingle"
     , "PredictiveEcology/Biomass_core@development"
   ),
-  times = list(start = 2011, end = 2091),
+  times = list(start = 2020, end = 2100),
   studyArea = {
     sa <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/district/ecodistrict_shp.zip", 
                                    destinationPath = paths$inputPath, 
@@ -76,23 +77,25 @@ simProject <- SpaDES.project::setupProject(
   },
   sppEquiv = {
     spp <- LandR::speciesInStudyArea(studyArea = studyArea,
-                                     dPath = "inputs",)
-    sppEquiv <- LandR::sppEquivalencies_CA[KNN %in% spp$speciesList,]
+                                     dPath = "inputs")
+    sppEquiv <- LandR::sppEquivalencies_CA[SCANFI %in% spp$speciesList,]
     sppEquiv <- sppEquiv[LANDIS_traits != "",]
-    sppEquiv <- sppEquiv[grep(pattern = "Spp", x = sppEquiv$KNN, invert = TRUE),]
+    sppEquiv <- sppEquiv[grep(pattern = "Spp", x = sppEquiv$SCANFI, invert = TRUE),]
     sppEquiv[LandR == "Popu_bal", LandR := "Popu_tre"]
+    sppEquiv[LandR == "Pice_sp", LandR:= "Pice_eng"] # need to fix this for everyone
+    #make sure to remove any Sp 
     #there is insignificant balsam poplar in the montane cordillera, so combine it with aspen
   },
   argsForFactorial = {
     a <- list(cohortsPerPixel = 1:2,
-              growthcurve = seq(0.1, 0.9, 0.05),
+              growthcurve = seq(0, 1, 0.05),
               mortalityshape = seq(21, 25, 2), 
               longevity = seq(150,550, 50), 
               mANPPproportion = seq(3.3, 6.6, 0.3)) 
   },
   params = list(
     .globals = list(
-      dataYear = 2011,
+      dataYear = 2020,
       .plots = "png",
       .studyAreaName = studyAreaName,
       minCohortBiomass = 1 #for plotting purposes - so many growth curves lose their tail if we remove B < 10
@@ -132,11 +135,12 @@ simProject <- SpaDES.project::setupProject(
 
 #####experiment args #### 
 inSim <- do.call(simInit, simProject)
-SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_MC")
+
+SpaDES.experiment::experiment(inSim, replicates = 1, dirPrefix = "focalFitting_MC")
 
 
 inSim@params$Biomass_speciesParameters$speciesFittingApproach <- "single"
-SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_MC")
+SpaDES.experiment::experiment(inSim, replicates = 1, dirPrefix = "singleFitting_MC")
 
 # cdRep1 <- readRDS("outputs/focalFitting_all/rep1/cohortData_year2051.rds")
 # cdRep2 <- readRDS("outputs/focalFitting_all/rep2/cohortData_year2051.rds") 
