@@ -1,23 +1,18 @@
+# this isn't running with tmux (keep having google issues)
+# aes_string deprecation
 repos <- c("predictiveecology.r-universe.dev", getOption("repos"))
 # Need the latest version
 if (tryCatch(packageVersion("SpaDES.project") < "0.1.1", error = function(x) TRUE)) {
   install.packages(c("SpaDES.project", "Require"), repos = repos)
+  install.packages(c("reproducible", "SpaDES.core"), repos = repos)
 }
 #needed cmake
 
 #### Settings users will want to set themselves ####
 
-projPath <- "~/git/DataDrivenModels_Manuscript"
+#added googledrive json to ~/.secrets for non-interactive use
 
-options(gargle_oauth_email = "ianmseddy@gmail.com")
 
-if (length(grep("Windows", osVersion)) != 0) {
-  options(gargle_oauth_client_type = "installed", 
-          gargle_oauth_cache = "../../google_drive_cache")
-} else {
-  options(gargle_oauth_cache = "~/google_drive_cache",
-          gargle_oauth_client_type = "web")
-}
 
 ##### Set up ####
 studyAreaEcozone <- "Montane Cordillera"
@@ -27,10 +22,15 @@ projPath <- getwd()
 
 simProject <- SpaDES.project::setupProject(
   packages = c("usethis", "googledrive", "httr2", "RCurl", "XML", "bcdata"),
-  useGit = FALSE,
-  require = c("PredictiveEcology/reproducible@AI (>= 2.1.2.9050)",
-              "PredictiveEcology/SpaDES.core@box (>= 2.1.5.9022)",
-              "PredictiveEcology/SpaDES.experiment (>= 0.0.2.9005)"),
+  useGit = "ianmseddy@gmail.com",
+  require = c("reproducible",
+              "PredictiveEcology/SpaDES.experiment@development (>= 0.0.2.9005)",
+              "PredictiveEcology/LandR@development (>= 1.1.5.9076)"),
+  options = list(reproducible.inputPaths = "~/data", 
+                 gargle_oauth_email = "ianmseddy@gmail.com", 
+                 gargle_oauth_cache = ".secrets", 
+                 terra.memfrac = 0, #TODO: confirm this works
+                 gargle_oauth_client_type = "web"),
   paths = list(projectPath = projPath,
                modulePath = file.path("modules"),
                cachePath = file.path("cache"),
@@ -73,6 +73,8 @@ simProject <- SpaDES.project::setupProject(
                      record = "f358a53b-ffde-4830-a325-a5a03ff672c3", 
                      userTags = c("BECs")) |>
       reproducible::postProcess(to = studyArea)
+    subzone$fullZoneSbZone <- paste(subzone$ZONE, subzone$SUBZONE)
+    subzone$subzoneNum <- as.numeric(as.factor(subzone$fullZoneSbZone))
     return(subzone)
   },
   sppEquiv = {
@@ -88,10 +90,10 @@ simProject <- SpaDES.project::setupProject(
   },
   argsForFactorial = {
     a <- list(cohortsPerPixel = 1:2,
-              growthcurve = seq(0, 1, 0.05),
+              growthcurve = seq(0, 1, 0.04),
               mortalityshape = seq(21, 25, 2), 
               longevity = seq(150,550, 50), 
-              mANPPproportion = seq(3.3, 6.6, 0.3)) 
+              mANPPproportion = seq(3.0, 6.6, 0.3)) 
   },
   params = list(
     .globals = list(
@@ -110,38 +112,43 @@ simProject <- SpaDES.project::setupProject(
       .useCache = ".inputObjects"
     ),
     Biomass_borealDataPrep = list(
-      ecoregionLayerField = "SUBZONE"
+      ecoregionLayerField = "subzoneNum"
     )
   ), 
   outputs =  {
     outputs <- rbind(
-      data.table(objectName = "pixelGroupMap", 
-                 saveTime = c(seq(times$start, times$end, 5)), 
-                 exts = ".tif", fun = "writeRaster", package = "raster"), 
-      data.table(objectName = "cohortData", 
-                 saveTime = c(seq(times$start, times$end, 5))), 
-      data.table(objectName = "speciesEcoregion", 
-                 saveTime = times$end), 
-      data.table(objectName = "species", 
-                 saveTime = times$end),
+      data.table(objectName = "pixelGroupMap", saveTime = c(seq(times$start, times$end, 5)), 
+                 exts = ".tif", fun = "writeRaster", package = "terra"), 
+      data.table(objectName = "cohortData", saveTime = c(seq(times$start, times$end, 5))), 
+      data.table(objectName = "speciesEcoregion", saveTime = times$end), 
+      data.table(objectName = "ecoregion", saveTime = times$end), 
+      data.table(objectName = "species", saveTime = times$end),
+      data.table(objectName = "ecoregionMap", saveTime = times$end, exts = ".tif", 
+                 fun = "writeRaster", package = "terra"),
       fill = TRUE
     )
     outputs[is.na(fun), c("exts", "fun", "package") := .("rds", "saveRDS", "base")]
     outputs <- as.data.frame(outputs)
     # outputs$arguments <- list("writeRaster" = list("overwrite" = TRUE))
-    outputs
+    outputs$arguments <- list(overwrite = TRUE)
+    return(outputs)
   }
 )
 
 #####experiment args #### 
 inSim <- do.call(simInit, simProject)
-
-SpaDES.experiment::experiment(inSim, replicates = 1, dirPrefix = "focalFitting_MC")
-
-
+#save the static objects
+terra::writeRaster(inSim$rstLCC, "outputs/rstLCC.tif", overwrite = TRUE)
+terra::writeVector(vect(inSim$ecoregionLayer), "outputs/ecoregionLayer.shp", overwrite = TRUE)
+out <- as.data.table(inSim$ecoregionLayer)
+out <- unique(out[,.(ZONE, SUBZONE, subzoneNum)])
+#TODO: where is the ecoregion attributes linking mapcode to ecoregion? did it survive terra conversion?
+focalSims <- SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_MC")
+#run single
 inSim@params$Biomass_speciesParameters$speciesFittingApproach <- "single"
-SpaDES.experiment::experiment(inSim, replicates = 1, dirPrefix = "singleFitting_MC")
+singleSims <- SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_MC")
 
+#use levels(ecoregionMap)
 # cdRep1 <- readRDS("outputs/focalFitting_all/rep1/cohortData_year2051.rds")
 # cdRep2 <- readRDS("outputs/focalFitting_all/rep2/cohortData_year2051.rds") 
 # pgRep1 <- rast("outputs/focalFitting_all/rep1/pixelGroupMap_year2051.tif")
