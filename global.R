@@ -22,12 +22,12 @@ projPath <- getwd()
 
 simProject <- SpaDES.project::setupProject(
   packages = c("usethis", "googledrive", "httr2", "RCurl", "XML", "bcdata"),
-  useGit = "ianmseddy@gmail.com",
+  useGit = FALSE, #tried this to keep it from updating 
   require = c("reproducible",
               "PredictiveEcology/SpaDES.experiment@development (>= 0.0.2.9005)",
               "PredictiveEcology/LandR@development (>= 1.1.5.9076)"),
   options = list(reproducible.inputPaths = "~/data", 
-                 gargle_oauth_email = "ianmseddy@gmail.com", 
+                 gargle_oauth_email = "ianmseddy@gmail.com", #TODO: use a file (this is here from debugging tmux)
                  gargle_oauth_cache = ".secrets", 
                  terra.memfrac = 0, #TODO: confirm this works
                  gargle_oauth_client_type = "web"),
@@ -40,7 +40,7 @@ simProject <- SpaDES.project::setupProject(
   modules = c(
     "PredictiveEcology/Biomass_speciesFactorial@development"
     , "PredictiveEcology/Biomass_borealDataPrep@development"
-    , "PredictiveEcology/Biomass_speciesParameters@fixingSingle"
+    , "PredictiveEcology/Biomass_speciesParameters@development"
     , "PredictiveEcology/Biomass_core@development"
   ),
   times = list(start = 2020, end = 2100),
@@ -78,19 +78,20 @@ simProject <- SpaDES.project::setupProject(
     return(subzone)
   },
   sppEquiv = {
-    spp <- LandR::speciesInStudyArea(studyArea = studyArea,
-                                     dPath = "inputs")
-    sppEquiv <- LandR::sppEquivalencies_CA[SCANFI %in% spp$speciesList,]
+    species <- LandR::speciesInStudyArea(studyArea = studyArea, dPath = paths$inputPath, sppEquivCol = "LandR")
+    sppEquiv <- LandR::sppEquivalencies_CA[LandR %in% species$speciesList,]
     sppEquiv <- sppEquiv[LANDIS_traits != "",]
-    sppEquiv <- sppEquiv[grep(pattern = "Spp", x = sppEquiv$SCANFI, invert = TRUE),]
     sppEquiv[LandR == "Popu_bal", LandR := "Popu_tre"]
-    sppEquiv[LandR == "Pice_sp", LandR:= "Pice_eng"] # need to fix this for everyone
-    #make sure to remove any Sp 
-    #there is insignificant balsam poplar in the montane cordillera, so combine it with aspen
+  },
+  sppEquivLong = {
+    #this object dictates the biomass equation to determine AGB from DBH + Height via the PSP column
+    #TODO: this will eventually use a dedicated biomass equation column 
+    sppEquivLong <- LandR::sppEquivalencies_CA
+    sppEquivLong[LandR == "Pice_eng_gla", PSP := "engelmann spruce"]
   },
   argsForFactorial = {
     a <- list(cohortsPerPixel = 1:2,
-              growthcurve = seq(0, 1, 0.04),
+              growthcurve = seq(0, 1, 0.05),
               mortalityshape = seq(21, 25, 2), 
               longevity = seq(150,550, 50), 
               mANPPproportion = seq(3.0, 6.6, 0.3)) 
@@ -103,16 +104,18 @@ simProject <- SpaDES.project::setupProject(
       minCohortBiomass = 1 #for plotting purposes - so many growth curves lose their tail if we remove B < 10
     ), 
     Biomass_speciesParameters = list(
-      standAgesForFitting = c(21, 121), 
+      standAgesForFitting = c(20, 125), 
       quantileAgeSubset = 99, 
-      .useCache = ".inputObjects"
+      # .useCache = ".inputObjects"
+      .useCache = FALSE
       
     ), 
     Biomass_core = list(
       .useCache = ".inputObjects"
     ),
     Biomass_borealDataPrep = list(
-      ecoregionLayerField = "subzoneNum"
+      ecoregionLayerField = "subzoneNum", 
+      overrideAgeInFires = FALSE #TODO: while the NFDB file has proprietary zipping
     )
   ), 
   outputs =  {
@@ -142,13 +145,15 @@ terra::writeRaster(inSim$rstLCC, "outputs/rstLCC.tif", overwrite = TRUE)
 terra::writeVector(vect(inSim$ecoregionLayer), "outputs/ecoregionLayer.shp", overwrite = TRUE)
 out <- as.data.table(inSim$ecoregionLayer)
 out <- unique(out[,.(ZONE, SUBZONE, subzoneNum)])
-#TODO: where is the ecoregion attributes linking mapcode to ecoregion? did it survive terra conversion?
+
+
 focalSims <- SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_MC")
 #run single
 inSim@params$Biomass_speciesParameters$speciesFittingApproach <- "single"
 singleSims <- SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_MC")
 
 #use levels(ecoregionMap)
+#TODO: where is the ecoregion attributes linking mapcode to ecoregion? did it survive terra conversion?
 # cdRep1 <- readRDS("outputs/focalFitting_all/rep1/cohortData_year2051.rds")
 # cdRep2 <- readRDS("outputs/focalFitting_all/rep2/cohortData_year2051.rds") 
 # pgRep1 <- rast("outputs/focalFitting_all/rep1/pixelGroupMap_year2051.tif")
