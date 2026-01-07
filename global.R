@@ -1,5 +1,3 @@
-# this isn't running with tmux (keep having google issues)
-# aes_string deprecation
 repos <- c("predictiveecology.r-universe.dev", getOption("repos"))
 # Need the latest version
 if (tryCatch(packageVersion("SpaDES.project") < "0.1.1", error = function(x) TRUE)) {
@@ -25,11 +23,12 @@ simProject <- SpaDES.project::setupProject(
   useGit = FALSE, #tried this to keep it from updating 
   require = c("reproducible",
               "PredictiveEcology/SpaDES.experiment@development (>= 0.0.2.9005)",
-              "PredictiveEcology/LandR@development (>= 1.1.5.9076)"),
+              "PredictiveEcology/LandR@development (>= 1.1.5.9090)"),
   options = list(reproducible.inputPaths = "~/data", 
                  gargle_oauth_email = "ianmseddy@gmail.com", #TODO: use a file (this is here from debugging tmux)
-                 gargle_oauth_cache = ".secrets", 
-                 terra.memfrac = 0, #TODO: confirm this works
+                 gargle_oauth_cache = ".secrets",
+                 reproducible.useMemoise = FALSE, ##limit RAM use due to immense size of factorial object
+                 terra.memfrac = 0, #limit RAM use due to immense size of factorial object
                  gargle_oauth_client_type = "web"),
   paths = list(projectPath = projPath,
                modulePath = file.path("modules"),
@@ -43,7 +42,7 @@ simProject <- SpaDES.project::setupProject(
     , "PredictiveEcology/Biomass_speciesParameters@development"
     , "PredictiveEcology/Biomass_core@development"
   ),
-  times = list(start = 2020, end = 2100),
+  times = list(start = 2020, end = 2120),
   studyArea = {
     sa <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/district/ecodistrict_shp.zip", 
                                    destinationPath = paths$inputPath, 
@@ -92,30 +91,26 @@ simProject <- SpaDES.project::setupProject(
   argsForFactorial = {
     a <- list(cohortsPerPixel = 1:2,
               growthcurve = seq(0, 1, 0.05),
-              mortalityshape = seq(21, 25, 2), 
-              longevity = seq(150,550, 50), 
-              mANPPproportion = seq(3.0, 6.6, 0.3)) 
+              mortalityshape = seq(21, 25, 2),
+              longevity = seq(150, 550, 50),
+              mANPPproportion = seq(2.8, 6.4, 0.4))
   },
   params = list(
     .globals = list(
       dataYear = 2020,
       .plots = "png",
       .studyAreaName = studyAreaName,
-      minCohortBiomass = 1 #for plotting purposes - so many growth curves lose their tail if we remove B < 10
+      initialB = 20, #this is necessary if including growthcurves > 0.9
+      minCohortBiomass = 9 
     ), 
     Biomass_speciesParameters = list(
       standAgesForFitting = c(20, 125), 
-      quantileAgeSubset = 99, 
-      # .useCache = ".inputObjects"
-      .useCache = FALSE
-      
+      PSPdataTypes = c("BC", "NFI", "AB"),
+      minDBH = 5,
+      quantileAgeSubset = 99
     ), 
-    Biomass_core = list(
-      .useCache = ".inputObjects"
-    ),
     Biomass_borealDataPrep = list(
-      ecoregionLayerField = "subzoneNum", 
-      overrideAgeInFires = FALSE #TODO: while the NFDB file has proprietary zipping
+      ecoregionLayerField = "subzoneNum"
     )
   ), 
   outputs =  {
@@ -142,21 +137,15 @@ simProject <- SpaDES.project::setupProject(
 inSim <- do.call(simInit, simProject)
 #save the static objects
 terra::writeRaster(inSim$rstLCC, "outputs/rstLCC.tif", overwrite = TRUE)
-terra::writeVector(vect(inSim$ecoregionLayer), "outputs/ecoregionLayer.shp", overwrite = TRUE)
-out <- as.data.table(inSim$ecoregionLayer)
-out <- unique(out[,.(ZONE, SUBZONE, subzoneNum)])
+#originally disturbed forest landcover (LCC 240) are reclassified in ecoregionRst  
+ecoregionKey <- as.data.table(inSim$ecoregionLayer)
+ecoregionKey <- unique(ecoregionKey[,.(ZONE, SUBZONE, subzoneNum)])
+saveRDS(ecoregionKey, "outputs/ecoregionKey.rds") 
+#join this with cats(sim$ecoregionMap) by subzoneNum = ecoregionName to get the zone and subzone of all ecoregions
 
-
+#TODO: we do not need 3 replicates from BSP
 focalSims <- SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "focalFitting_MC")
 #run single
 inSim@params$Biomass_speciesParameters$speciesFittingApproach <- "single"
 singleSims <- SpaDES.experiment::experiment(inSim, replicates = 3, dirPrefix = "singleFitting_MC")
 
-#use levels(ecoregionMap)
-#TODO: where is the ecoregion attributes linking mapcode to ecoregion? did it survive terra conversion?
-# cdRep1 <- readRDS("outputs/focalFitting_all/rep1/cohortData_year2051.rds")
-# cdRep2 <- readRDS("outputs/focalFitting_all/rep2/cohortData_year2051.rds") 
-# pgRep1 <- rast("outputs/focalFitting_all/rep1/pixelGroupMap_year2051.tif")
-# pgRep2 <- rast("outputs/focalFitting_all/rep2/pixelGroupMap_year2051.tif")
-# cdRep1[pixelGroup %in% pgRep1[30000],]
-# cdRep2[pixelGroup %in% pgRep2[30000],]
