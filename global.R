@@ -15,6 +15,8 @@ if (tryCatch(packageVersion("SpaDES.project") < "0.1.1", error = function(x) TRU
 ##### Set up ####
 studyAreaEcozone <- "Montane Cordillera"
 studyAreaName <- "Fraser_Basin_district980"
+#studyAreaName Should be BowronValley_986 but I forgot to update this
+#
 
 projPath <- getwd()
 
@@ -23,7 +25,7 @@ simProject <- SpaDES.project::setupProject(
   useGit = FALSE, #tried this to keep it from updating 
   require = c("reproducible",
               "PredictiveEcology/SpaDES.experiment@development (>= 0.0.2.9005)",
-              "PredictiveEcology/LandR@development (>= 1.1.5.9090)"),
+              "PredictiveEcology/LandR@development (>= 1.1.5.9091)"),
   options = list(reproducible.inputPaths = "~/data", 
                  gargle_oauth_email = "ianmseddy@gmail.com", #TODO: use a file (this is here from debugging tmux)
                  gargle_oauth_cache = ".secrets",
