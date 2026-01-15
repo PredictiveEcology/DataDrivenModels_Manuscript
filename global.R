@@ -37,14 +37,14 @@ simProject <- SpaDES.project::setupProject(
                cachePath = file.path("cache"),
                scratchPath = tempdir(),
                inputPath = file.path("inputs"),
-               outputPath = file.path("outputs")),
+               outputPath = file.path("outputs/foo")),
   modules = c(
     "PredictiveEcology/Biomass_speciesFactorial@development"
     , "PredictiveEcology/Biomass_borealDataPrep@development"
     , "PredictiveEcology/Biomass_speciesParameters@development"
     , "PredictiveEcology/Biomass_core@development"
   ),
-  times = list(start = 2020, end = 2120),
+  times = list(start = 2020, end = 2021),
   studyArea = {
     sa <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/district/ecodistrict_shp.zip", 
                                    destinationPath = paths$inputPath, 
@@ -81,7 +81,8 @@ simProject <- SpaDES.project::setupProject(
   sppEquiv = {
     species <- LandR::speciesInStudyArea(studyArea = studyArea, dPath = paths$inputPath, sppEquivCol = "LandR")
     sppEquiv <- LandR::sppEquivalencies_CA[LandR %in% species$speciesList,]
-    sppEquiv <- sppEquiv[LANDIS_traits != "",]
+    sppEquiv <- sppEquiv[LANDIS_traits != "" & LandR != "Betu_pap",]
+    #there is very little birch here, and not enough to parameterize in "single"
     sppEquiv[LandR == "Popu_bal", LandR := "Popu_tre"]
   },
   sppEquivLong = {
@@ -134,6 +135,11 @@ simProject <- SpaDES.project::setupProject(
     return(outputs)
   }
 )
+
+#ian scribbles
+#change outputs and simTime
+test <- simInitAndSpades2(simProject)
+
 
 #####experiment args #### 
 inSim <- do.call(simInit, simProject)

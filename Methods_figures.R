@@ -74,26 +74,37 @@ factorial_biomass <- read_ipc_file(list.files(factorial_biomass, full.names = TR
 # set.seed(14)
 #species beginning with A are the single-species cohorts
 # randomSp <- sample(factorial_spp[longevity < 400][grep("A", species),]$species, size = 6, replace = FALSE)
-randomSp <-c("A265", " A1345", "A2299", "A5255", "A1256", "A688")
-# goodSp <- sample(factorial_biomass[B > 4950,]$speciesCode, size = 1, replace = FALSE)
+randomSp <- c("A265", " A1345", "A2299", "A5255", "A1256", "A688")
 
 #because there isn't an instance of "zero" biomass that is preserved, manually add them here
 # purely for illustrative purposes
-fig3Dat <- factorial_biomass[speciesCode %in% randomSp]
-fig3Spp <- factorial_spp[species %in% randomSp][, .(species, longevity)]
+fig3Dat <- factorial_biomass[speciesCode %in% randomSp] |> copy()
+fig3Spp <- factorial_spp[species %in% randomSp][, .(species, longevity)] |>  copy()
 fig3Spp[, c("age", "B", "speciesCode") := .(longevity, 0, species)]
 
-fig3Dat <- rbind(fig3Spp, fig3Dat, fill = TRUE)
-fig3 <- ggplot(data = fig3Dat, 
-               aes(y = B, x = age, col = speciesCode)) + 
+fig3_data <- rbind(fig3Spp, fig3Dat, fill = TRUE)
+fig3_data[, species := NULL]
+
+#for figure legend #
+temp <- factorial_spp[species %in% randomSp,] |> copy()
+
+temp[, speciesLabel := paste0("g.c.: ", growthcurve, "; m.s.: ", mortalityshape, 
+                              "; long.: ", longevity, "; mANPP: ", mANPPproportion)]
+temp[, speciesLabel := paste0("Sp", 1:5, " - ", speciesLabel)]
+temp <- temp[, .(species, speciesLabel)]
+fig3_data <- fig3_data[temp, on = c("speciesCode" = "species")]
+
+fig3 <- ggplot(data = fig3_data, 
+               aes(y = B, x = age, col = speciesLabel)) + 
   geom_line(linewidth = 1.2, alpha = 0.7) + 
   theme_bw() + 
   labs(y = "aboveground biomass (g/m2)", 
-       col = "species with\nrandomly\ngenerated traits ") + 
-  theme(legend.position = "bottom")
+       col = "species") + 
+  theme(legend.position = "bottom") + 
+  guides(color = guide_legend(nrow = 3, byrow = TRUE))
 ggsave("manuscript_figures/fig3.png", fig3, dpi = 300, width = 8, height = 4)
 googledrive::drive_upload("manuscript_figures/fig3.png", path = gFolder, name = "fig3.png")
-rm(fig3Dat, fig3Spp, )
+rm(fig3Dat, fig3Spp)
 
 ##### Fig 4 ####
 #to redo figure 4, we need a separate factorial with all mortalityshapes, not just 21-25
