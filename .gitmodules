@@ -10,3 +10,6 @@
 [submodule "modules/Biomass_speciesParameters"]
 	path = modules/Biomass_speciesParameters
 	url = https://github.com/PredictiveEcology/Biomass_speciesParameters
+[submodule "modules/Biomass_yieldTables"]
+	path = modules/Biomass_yieldTables
+	url = git@github.com:PredictiveEcology/Biomass_yieldTables.git

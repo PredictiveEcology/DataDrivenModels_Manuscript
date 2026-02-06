@@ -70,15 +70,6 @@ simProject <- SpaDES.project::setupProject(
                                          destinationPath = paths$inputPath)
     ecozones <- ecozones[ecozones$ZONE_NAME %in% studyAreaEcozone,]
   },
-  # ecoregionLayer = {
-  #   subzone <- Cache(bcdata::bcdc_get_data, 
-  #                    record = "f358a53b-ffde-4830-a325-a5a03ff672c3", 
-  #                    userTags = c("BECs")) |>
-  #     reproducible::postProcess(to = studyArea)
-  #   subzone$fullZoneSbZone <- paste(subzone$ZONE, subzone$SUBZONE)
-  #   subzone$subzoneNum <- as.numeric(as.factor(subzone$fullZoneSbZone))
-  #   return(subzone)
-  # },
   sppEquiv = {
     species <- LandR::speciesInStudyArea(studyArea = studyArea, dPath = paths$inputPath, sppEquivCol = "LandR")
     sppEquiv <- LandR::sppEquivalencies_CA[LandR %in% species$speciesList,]
