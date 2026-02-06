@@ -1,3 +1,4 @@
+#most, if not all, installed from running the sim
 library(Require)
 Require("data.table")
 Require("reproducible")
@@ -6,11 +7,13 @@ Require("ggplot2")
 Require("patchwork") #to stack some plots
 Require("googledrive")
 Require("arrow")
+Require("scales")
 
 #these are "Methods" figures that don't need to be created from simulation output 
 
 gFolder <- googledrive::as_id("https://drive.google.com/drive/folders/1-jrQpHIyUPsveTH5gw1fsdyd3txj8TvP?usp=drive_link")
-
+singleOutputPath <- "outputs/single"
+focalOutputPath <- "outputs/focal"
 #Manuscript figures
 
 ####fig 2####
@@ -61,14 +64,17 @@ rm(factorial_w_mortality, factorial_spp)
 
 
 #get the factorial used in the simulation:
-#(they are identical between reps)
-factorial_spp <- list.files("outputs/focalFitting_MC/rep1", 
-                            pattern = "speciesTableFactorial", full.names =TRUE)
-factorial_spp <- read_ipc_file(list.files(factorial_spp, full.names = TRUE)[[1]]) |>
+# the name will vary so grep it
+factorial_spp <- list.files(focalOutputPath, 
+                            pattern = "speciesTableFactorial", full.names =TRUE) |>
+  list.files(full.names = TRUE) |>
+  read_ipc_file() |>
   as.data.table()
-factorial_biomass <- list.files("outputs/focalFitting_MC/rep1", 
-                                pattern = "cohortDataFactorial", full.names = TRUE)
-factorial_biomass <- read_ipc_file(list.files(factorial_biomass, full.names = TRUE)[[1]]) |>
+
+factorial_spp <- list.files(focalOutputPath, 
+                            pattern = "cohortDataFactorial", full.names =TRUE) |>
+  list.files(full.names = TRUE) |>
+  read_ipc_file() |>
   as.data.table()
 
 # set.seed(14)
@@ -107,9 +113,97 @@ googledrive::drive_upload("manuscript_figures/fig3.png", path = gFolder, name = 
 rm(fig3Dat, fig3Spp)
 
 ##### Fig 4 ####
-#to redo figure 4, we need a separate factorial with all mortalityshapes, not just 21-25
-# fig4_spp <- factorial_spp[longevity == 250]
-# fig4_B <- factorial_biomass[speciesCode %in% fig4_spp$species]
-# fig4B_mort <- fig4
+# fig 4 requires a separate factorial with all mortalityshapes, not just 21-25
+# this was created by allowing fewer values of longevity and running with single
+fT <- prepInputs(url = 'https://drive.google.com/file/d/1AeCMmh_rtzxXmqAU8od2b_w5g2cexDRt/view?usp=drive_link', 
+                 targetFile = "factorialTraits_allMortalityShape.csv", fun = "data.table::fread")
+fB <- prepInputs(url = "https://drive.google.com/file/d/1AeCMmh_rtzxXmqAU8od2b_w5g2cexDRt/view?usp=drive_link", 
+                 targetFile = "factorialBiomass_allMortalityShape.csv", fun = "data.table::fread")
+#keep longevity constant for figures
+fT250 <- fT[longevity == 250,]
+fB250 <- fB[speciesCode %in% fT250$species]
+fT250 <- fT250[, .(species, growthcurve, mortalityshape, mANPPproportion, pixelGroup)]
+fB250 <- fB250[fT250, on = c("speciesCode" = "species", "pixelGroup")]
+
+#for each param of interest, hold the others constant
+# these are the mean values in the factorial (mANPP ranged 2.4 to 6.4)
+growthcurveSpp <- fT250[mortalityshape == 15 & mANPPproportion == 4.4,]$species
+mortalityshapeSpp <- fT250[growthcurve == 0.5 & mANPPproportion == 4.4,]$species
+mANPPpropSpp <- fT250[mortalityshape == 15 & growthcurve  == 0.5,]$species
 
 
+leg_theme <- theme(
+  # legend.position = "bottom",
+  legend.key.height = unit(2.5, "mm"),
+  legend.key.width  = unit(3.0, "mm"),
+  legend.spacing.y  = unit(1.5, "mm"),
+  legend.margin     = margin(t = 0, r = 0, b = 0, l = 0),
+  legend.box.margin = margin(t = -4, r = 0, b = 0, l = 0)
+)
+
+fig4A <- ggplot(fB250[speciesCode %in% growthcurveSpp, ],
+                aes(age, B, group = speciesCode, colour = growthcurve)) +
+  geom_line(linewidth = 1, alpha = 0.9) +
+  labs(y = "B", x = "") +
+  scale_colour_viridis_c(
+    option = "D",
+    breaks = pretty_breaks(3),
+    guide = guide_colorbar(direction = "vertical")
+  ) +
+  theme_bw() + leg_theme
+
+fig4B <- ggplot(fB250[speciesCode %in% mortalityshapeSpp, ],
+                aes(age, B, group = speciesCode, colour = mortalityshape)) +
+  geom_line(linewidth = 1, alpha = 0.9) +
+  labs(x = "age", y = "") +
+  scale_colour_viridis_c(
+    option = "D",
+    breaks = pretty_breaks(3),
+    guide = guide_colorbar(direction = "vertical")
+  ) +
+  theme_bw() + leg_theme
+
+fig4C <- ggplot(fB250[speciesCode %in% mANPPpropSpp, ],
+                aes(age, B, group = speciesCode, colour = mANPPproportion)) +
+  geom_line(linewidth = 1, alpha = 0.9) +
+  labs(y = "", x = "") +
+  scale_colour_viridis_c(
+    option = "D",
+    breaks = pretty_breaks(3),
+    guide = guide_colorbar(direction = "vertical")
+  ) +
+  theme_bw() + leg_theme
+
+fig4 <- fig4A + fig4B + fig4C
+
+ggsave(
+  filename = "manuscript_figures/fig4_growthcurveparam_fullRange.png",
+  plot = fig4_new,
+  width = 7, height = 12, dpi = 300
+)
+
+googledrive::drive_upload("manuscript_figures/fig4_growthcurveparam_fullRange.png", overwrite = TRUE,
+                          path = gFolder, name = "fig4_growthcurveparam_fullRange.png")
+
+#unsure if this is a methods or results figure
+factorial_spp <- list.files(focalOutputPath, 
+                            pattern = "speciesTableFactorial", full.names =TRUE)
+factorial_spp <- read_ipc_file(list.files(factorial_spp, full.names = TRUE)[[1]]) |>
+  as.data.table()
+factorial_biomass <- list.files(focalOutputPath, 
+                                pattern = "cohortDataFactorial", full.names = TRUE)
+factorial_biomass <- read_ipc_file(list.files(factorial_biomass, full.names = TRUE)[[1]]) |>
+  as.data.table()
+inflationFactorKey <- factorial_biomass[grep("A", speciesCode), .(maxB = max(B)), .(speciesCode)]
+hist(inflationFactorKey$maxB)
+inflationFactorKey <- factorial_spp[inflationFactorKey, on = c("species" = "speciesCode")]
+temp <- melt.data.table(inflationFactorKey, id.vars = c("maxB", "species"), 
+                        measure.vars =c ("mortalityshape", "growthcurve", "longevity", "mANPPproportion"),
+                        variable.name = "trait", value.name = "value")
+
+maxB_plot <- ggplot(temp, aes(y = maxB, x = value)) + geom_jitter() + 
+  facet_wrap(~trait, scales = "free_x") + 
+  theme_bw() + 
+  labs(x = "maxB achieved in factorial")
+ggsave(maxB_plot, file = "manuscript_figures/maxB_facetplot.png", dpi = 300, width = 8, height = 8)
+googledrive::drive_upload("manuscript_figures/maxB_facetplot.png", path = gFolder, name = "maxB_facetplot.png")
