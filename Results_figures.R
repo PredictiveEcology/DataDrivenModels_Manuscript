@@ -99,7 +99,22 @@ yieldTables <- lapply(list(focalOutputPath, singleOutputPath),
 yieldTables[[1]][, source := "focal"]
 yieldTables[[2]][, source := "single"]
 yieldTables <- rbindlist(yieldTables)
-yieldTables
+
+ecoTable <- terra::cats(ecoregionMap)
+ecoVals <- data.table(ID = as.vector(ecoregionMap))
+ecoVals <- ecoVals[!is.na(ID), .N, .(ID)]
+ecoTable <- ecoVals[ecoTable, on = c("ID")]
+ecoTable <- ecoTable[order(N, decreasing = TRUE)]
+
+ecoTable[, name := paste0("ecoregion: ", ecoregionName, "/ lcc: ", landcover)]
+yieldTables <- yieldTables[ecoTable[, .(ecoregionGroup, name)], on = c("ecoregionGroup")]
+#start with the 5 most common EG
+ggplot(yieldTables[ecoregionGroup %in% ecoTable[1:6,]$ecoregionGroup], 
+       aes(y = B, x = age, col = speciesCode)) + geom_line() + 
+  theme_bw() + 
+  scale_color_discrete(name = "species") + 
+  facet_wrap(~name + source)
+  
 
 
 #these all have ample room for species to grow at differential rates
