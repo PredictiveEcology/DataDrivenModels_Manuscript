@@ -1,17 +1,38 @@
+#eventually this could be a module run with Spades Experiment 
 #These are Results figures created from simulation output
-
 library(Require)
 Require(data.table)
 Require(ggplot2)
 Require(arrow)
+Require(terra)
 Require(qs2)
+Require(ggh4x)
 source("R/results_functions.R")
 
 gFolder <- googledrive::as_id("https://drive.google.com/drive/folders/1-jrQpHIyUPsveTH5gw1fsdyd3txj8TvP?usp=drive_link")
-
-
 singleOutputPath <- "outputs/single"
 focalOutputPath <- "outputs/focal"
+ecoregionMap <- rast(file.path(focalOutputPath, "ecoregionMap_year2120.tif"))
+#### set up #####
+# fix names of ecoregionGroups
+ecoTable <- terra::cats(ecoregionMap)
+ecoVals <- data.table(ID = as.vector(ecoregionMap))
+ecoVals <- ecoVals[!is.na(ID), .N, .(ID)]
+ecoTable <- ecoVals[ecoTable, on = c("ID")]
+ecoTable <- ecoTable[order(N, decreasing = TRUE)]
+ecoD_names <- fread("ecodistricts.csv")
+ecoD_names[, Ecodistrict := as.character(Ecodistrict)]
+
+ecoTable <- ecoD_names[ecoTable, on = c("Ecodistrict" = "ecoregionName")]
+lccs <- data.table(lcc = c("081", "210", "220", "230"), 
+                   lccName = c("wetland", "conif.", "decid.", "mixed"))
+ecoTable <- ecoTable[lccs, on = c("landcover" = "lcc")]
+ecoTable[, name := paste0(Name, "/ ", lccName)]
+rm(ecoVals, lccs)
+
+#### figures #####
+
+
 #no stochasticity in species traits, so use rep 1 for simplicity
 singleSpp <- readRDS(file.path(singleOutputPath, "species_year2120.rds"))
 focalSpp <- readRDS(file.path(focalOutputPath, "species_year2120.rds"))
@@ -43,6 +64,14 @@ speciesEco[, N := .N, .(speciesCode)]
 
 rm(focalSpp, singleSpp, speciesEco_single,  speciesEco_focal)
 
+##### pixel-level results ####
+# these are growth curves with all cohorts starting at age 0 - via Biomass_speciesYield
+#first get the colors 
+cols <- unique(LandR::sppEquivalencies_CA[LandR %in% speciesEco$speciesCode & colorHex != "", 
+                                          .(colorHex, LandR)])
+colorHex <- cols$colorHex
+names(colorHex) <- cols$LandR
+
 meanMaxANPP <- ggplot(speciesEco, aes(y = maxANPP, x = speciesCode, col = source)) + 
   geom_boxplot() + 
   theme_bw() + 
@@ -54,31 +83,47 @@ ggsave("manuscript_figures/meanMaxANPP.png", meanMaxANPP, dpi = 300, width = 7, 
 googledrive::drive_upload("manuscript_figures/meanMaxANPP.png", path = gFolder, 
                           name = "meanMaxANPP.png", overwrite = TRUE)
 
-cols <- unique(LandR::sppEquivalencies_CA[LandR %in% speciesEco$speciesCode & colorHex != "", 
-                                          .(colorHex, LandR)])
-colorHex <- cols$colorHex
-names(colorHex) <- cols$LandR
+meanMaxB <- ggplot(speciesEco, aes(y = maxB, x = speciesCode, col = source)) + 
+  geom_boxplot() + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(x = "species", y = "MaxB (g/m2/yr)")
+
+ggsave("manuscript_figures/meanMaxB.png", meanMaxB, dpi = 300, width = 7, height = 4)
+#I don't know if this is a useful figure - it doesn't show much different than the results one 
+googledrive::drive_upload("manuscript_figures/meanMaxB.png", path = gFolder, 
+                          name = "meanMaxB.png", overwrite = TRUE)
 
 
-#randomly sample PGs, stratified by ecoregionGroup
-ecoregionMap <- terra::rast(file.path(focalOutputPath, "ecoregionMap_year2120.tif"))
-samplePix <- initialFocalCD[, .N, .(ecoregionGroup, pixelGroup)]
-toGet <- samplePix[, .(pixelGroup = sample(pixelGroup, size = 1)), .(ecoregionGroup)]
-#order by abundance since we don't want 80
-ecoregionAbudnance <- samplePix[, .N, .(ecoregionGroup)]
-toGet <- toGet[ecoregionAbundance, on = c("ecoregionGroup")]
-toGet <- toGet[order(N, decreasing = TRUE)]
-pixelGroupsForPlot <- toGet[1:10]
-
-
-
-#pick from the x most common ecoregions
 
 #get the original landscape
 initialFocalCD <- readRDS(file.path(focalOutputPath, "cohortData_year2020.rds"))
 initialFocalPG <- terra::rast(file.path(focalOutputPath, "pixelGroupMap_year2020.tif"))
 
-#find the most common combinations by species
+#1. get Yield tables
+yieldTablesAll <- lapply(list(focalOutputPath, singleOutputPath), 
+                         FUN = getBiomassYieldCD)
+yieldTablesAll[[1]][, source := "focal"]
+yieldTablesAll[[2]][, source := "single"]
+yieldTablesAll <- rbindlist(yieldTablesAll)
+
+##pixels under age 10 have incorrect age due to a quirk in Biomass_core
+##update it here
+yieldTablesAll[age < 10, age := rank(B), .(speciesCode, pixelGroup, source)]
+yieldTablesAll <- yieldTablesAll[ecoTable[, .(ecoregionGroup, name)], on = c("ecoregionGroup")]
+
+#2. get subset of pixelGroups for figures
+# in the event we want random ecoregionGroups for pixel-level results... 
+# it is unclear if we want random or not.. alternatively, the most common pairing?
+# but the most common pairings do not contain all species (e.g. no Pice_mariana)
+
+### approach 1 - random samples ####
+#randomly sample PGs, stratified by ecoregionGroup
+setkey(102)
+randomPGs <- yieldTablesAll[, .(pixelGroup = sample(pixelGroup, size = 1)), 
+                            .(ecoregionGroup)]
+
+#### approach 2 -  most common combinations by species ####
 subCDLong <- LandR::addPixels2CohortData(initialFocalCD, initialFocalPG)
 subCDLong <- subCDLong[, .(pixelIndex, ecoregionGroup, speciesCode)]
 subCDLong[, nSpp := length(unique(speciesCode)), .(pixelIndex)]
@@ -88,33 +133,54 @@ subCDLong <- subCDLong[nSpp > 1, .(combo = paste(unique(speciesCode), collapse =
 subCDLong <- subCDLong[, .N, .(ecoregionGroup, combo)]
 subCDLong[, mostCommon := max(N), .(ecoregionGroup)]
 subCDLong <- subCDLong[N == mostCommon, .(ecoregionGroup, combo)]
-#match this with the biomass_yieldTable
+#match this with the biomass_yieldTable pixelGorups
 bytCD <- qs2::qs_read(file.path(focalOutputPath, 'cohortDataYield/cohortData_year000.qs2'))
 bytCD <- bytCD[, .(combo = paste(unique(speciesCode), collapse = ", ")), .(pixelGroup, ecoregionGroup)]
-pgSubset <- bytCD[subCDLong, on = c("ecoregionGroup", "combo")]$pixelGroup
+mostCommonPGsubset <- bytCD[subCDLong, on = c("ecoregionGroup", "combo")]
+# rm(bytCD, samplePix)
 
-yieldTables <- lapply(list(focalOutputPath, singleOutputPath), 
-                      FUN = getBiomassYieldCD, 
-                      pixelGroupSubset = pgSubset)
-yieldTables[[1]][, source := "focal"]
-yieldTables[[2]][, source := "single"]
-yieldTables <- rbindlist(yieldTables)
 
-ecoTable <- terra::cats(ecoregionMap)
-ecoVals <- data.table(ID = as.vector(ecoregionMap))
-ecoVals <- ecoVals[!is.na(ID), .N, .(ID)]
-ecoTable <- ecoVals[ecoTable, on = c("ID")]
-ecoTable <- ecoTable[order(N, decreasing = TRUE)]
+# this table contains the most common pairing of species by ERG, their associated PG,
+# and the abundance of each ERG (N)
+commonPGs <- ecoTable[mostCommonPGsubset, on = c("ecoregionGroup")]
+commonPGs <- commonPGs[order(N, decreasing = TRUE)]
 
-ecoTable[, name := paste0("ecoregion: ", ecoregionName, "/ lcc: ", landcover)]
-yieldTables <- yieldTables[ecoTable[, .(ecoregionGroup, name)], on = c("ecoregionGroup")]
-#start with the 5 most common EG
-ggplot(yieldTables[ecoregionGroup %in% ecoTable[1:6,]$ecoregionGroup], 
+
+#use consistent colouring so species are the same between different plots
+# this is the 6 most common ERG
+mostCommonEG_pixelGG <- ggplot(yieldTablesAll[pixelGroup %in% commonPGs[1:6,]$pixelGroup], 
        aes(y = B, x = age, col = speciesCode)) + geom_line() + 
   theme_bw() + 
-  scale_color_discrete(name = "species") + 
-  facet_wrap(~name + source)
-  
+  scale_color_manual(name = "species", values = colorHex) + 
+  ggh4x::facet_nested_wrap(vars(name, source), nrow = 3, ncol = 4)
+ggsave("manuscript_figures/mostCommonEG_pixelGG.png", mostCommonEG_pixelGG, 
+       dpi = 300, height = 4, width = 7)
+googledrive::drive_upload("manuscript_figures/mostCommonEG_pixelGG.png", path = gFolder, 
+                          name = "mostCommonEG_pixelGG.png", overwrite = TRUE)  
+ 
+setkey(220)
+six_randomPGs <- sample(randomPGs$pixelGroup, 6)
+#I stupidly ran setkey instead of set.seed, but for posterity
+# 3533 1898 2013  630 1736 2946
+#so - focal does not always produce a more mixed stand. 
+random_pixelGG <- ggplot(yieldTablesAll[pixelGroup %in% six_randomPGs], 
+                               aes(y = B, x = age, col = speciesCode)) + geom_line() + 
+  theme_bw() + 
+  scale_color_manual(name = "species", values = colorHex) + 
+  ggh4x::facet_nested_wrap(vars(name, source), nrow = 3, ncol = 4)
+ggsave("manuscript_figures/random_pixelGG.png", random_pixelGG, 
+       dpi = 300, height = 4, width = 7)
+googledrive::drive_upload("manuscript_figures/random_pixelGG.png", path = gFolder, 
+                          name = "random_pixelGG.png", overwrite = TRUE)  
+
+#### compare the mean of all combinations #### 
+meanFromB <- yieldTablesAll[, .(B = mean(B), sdB = sd(B)), 
+                            .(speciesCode, age, source)]
+meanBgg <- ggplot(meanFromB, aes(x = age, y = B/100, col = speciesCode, linetype = source)) + 
+  geom_line(size = 1.2) + 
+  scale_color_manual(name = "species", values = colorHex) + 
+  labs(y = "B (Mg/ha)")
+meanFromB[speciesCode == "Pinu_ban" & age < 10]
 
 
 #these all have ample room for species to grow at differential rates

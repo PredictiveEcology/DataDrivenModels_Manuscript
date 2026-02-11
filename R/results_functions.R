@@ -142,17 +142,20 @@ getPixSubset <- function(initialCD, initialPG, speciesEcoregion,
 
 #the biomassYield pixelGroups are re-made from cohortData and will be identical between the two groups
 # as Biomass_yield dissolves landscape into age and B = 0, and then grows unique pixelGroups 
-#' @param pixelGroupSubset subset of pixelGroups
+#' @param pixelGroupSubset optional subset of pixelGroups
 #' used to subset. N is the number of unique species in a pixelGroup.  
 #' @param outputPath  location of the B_yT cohortDatas
-getBiomassYieldCD <- function(pixelGroupSubset, outputPath) {
+getBiomassYieldCD <- function(outputPath, pixelGroupSubset = NULL) {
 
   #the biomassYield pixelGroups are re-made from cohortData and will be identical between the two groups
   # as Biomass_yield dissolves landscape into age and B = 0, and then grows unique pixelGroups 
   cohortDatas <- list.files(file.path(outputPath, "cohortDataYield"), full.names = TRUE)
   cohortCDs <- lapply(cohortDatas, function(x) {
     x <- qs2::qs_read(x)
-    x <- x[pixelGroup %in% pixelGroupSubset,]
+    if (!is.null(pixelGroupSubset)) {
+      x <- x[pixelGroup %in% pixelGroupSubset,]
+    }
+    return(x)
   }) |>
     rbindlist(use.names = TRUE)
   return(cohortCDs)
