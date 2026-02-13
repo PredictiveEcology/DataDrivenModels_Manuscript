@@ -42,27 +42,33 @@ okabe_ito <- c(
   "#D55E00"  # vermillion
 )
 
-fig2a <- ggplot(data = ggData, aes(y = B, col = param, x = age)) + geom_line(linewidth = 1.2) + theme_bw() + 
-  labs(y = "aboveground biomass (g/m2)", colour = "Parameter: ") + 
+mortExampleFigA <- ggplot(data = ggData, aes(y = B, col = param, x = age)) +
+  geom_line(linewidth = 1.2, linetype = "twodash") +
+  theme_bw(base_size = 10) + 
+  labs(y = "Biomass (g/m2)", colour = "Param.: ") + 
   scale_colour_manual(values = okabe_ito, 
                       breaks = c("aNPPAct", "mAge", "mBio", "mortality"),
                       labels = c(aNPPAct = "ANPP",
                                  mAge = "age-mortality",
                                  mBio = "development-mortality", 
                                  mortality = "total mortality")) + 
+  guides(colour = guide_legend(nrow = 2)) + 
   theme(legend.position = "bottom")
 
-fig2b <- ggplot(data = expGC, aes(y = B, x = age)) + geom_line(linewidth = 1.2) + theme_bw() + 
-  labs(y = "aboveground biomass (g/m2)")
 
-fig2 <- fig2a/fig2b
-ggsave("manuscript_figures/fig2.png", fig2, dpi = 300, width = 8, height = 8)
-googledrive::drive_upload("manuscript_figures/fig2.png", path = gFolder, name = "fig2.png")
+mortExampleFigB <- ggplot(data = expGC, aes(y = B, x = age)) +
+  geom_line(linewidth = 1.2) + 
+  theme_bw(base_size = 10) + 
+  labs(y = "Biomass (g/m2)")
+
+mortExampleFig <- mortExampleFigA/mortExampleFigB
+ggsave("manuscript_figures/mortExampleFig.png", mortExampleFig, dpi = 600, width = 5, height = 4)
+googledrive::drive_upload("manuscript_figures/mortExampleFig.png", path = gFolder, name = "mortExampleFig.png", 
+                          overwrite = TRUE)
 rm(factorial_w_mortality, factorial_spp)
+
 ####fig 3####
 #get 5 randoms and 1 non-random with excellent traits
-
-
 #get the factorial used in the simulation:
 # the name will vary so grep it
 factorial_spp <- list.files(focalOutputPath, 
@@ -71,54 +77,55 @@ factorial_spp <- list.files(focalOutputPath,
   read_ipc_file() |>
   as.data.table()
 
-factorial_spp <- list.files(focalOutputPath, 
-                            pattern = "cohortDataFactorial", full.names =TRUE) |>
+factorial_biomass <- list.files(focalOutputPath, 
+                                pattern = "cohortDataFactorial", full.names =TRUE) |>
   list.files(full.names = TRUE) |>
   read_ipc_file() |>
   as.data.table()
 
-# set.seed(14)
+set.seed(15)
 #species beginning with A are the single-species cohorts
-# randomSp <- sample(factorial_spp[longevity < 400][grep("A", species),]$species, size = 6, replace = FALSE)
-randomSp <- c("A265", " A1345", "A2299", "A5255", "A1256", "A688")
-
+randomSp <- sample(factorial_spp[longevity < 400][grep("A", species),]$species, size = 6, replace = FALSE)
+# randomSp <- c("A4037", "A675", "A2978", "A2598", "A177", "A261")
 #because there isn't an instance of "zero" biomass that is preserved, manually add them here
 # purely for illustrative purposes
-fig3Dat <- factorial_biomass[speciesCode %in% randomSp] |> copy()
-fig3Spp <- factorial_spp[species %in% randomSp][, .(species, longevity)] |>  copy()
-fig3Spp[, c("age", "B", "speciesCode") := .(longevity, 0, species)]
+randomGCFig_Dat <- factorial_biomass[speciesCode %in% randomSp] |> copy()
+randomGCFig_Spp <- factorial_spp[species %in% randomSp][, .(species, longevity)] |>  copy()
+randomGCFig_Spp[, c("age", "B", "speciesCode") := .(longevity, 0, species)]
 
-fig3_data <- rbind(fig3Spp, fig3Dat, fill = TRUE)
-fig3_data[, species := NULL]
+randomGCFig_data <- rbind(randomGCFig_Spp, randomGCFig_Dat, fill = TRUE)
+randomGCFig_data[, species := NULL]
 
 #for figure legend #
 temp <- factorial_spp[species %in% randomSp,] |> copy()
-
 temp[, speciesLabel := paste0("g.c.: ", growthcurve, "; m.s.: ", mortalityshape, 
                               "; long.: ", longevity, "; mANPP: ", mANPPproportion)]
 temp[, speciesLabel := paste0("Sp", 1:5, " - ", speciesLabel)]
 temp <- temp[, .(species, speciesLabel)]
-fig3_data <- fig3_data[temp, on = c("speciesCode" = "species")]
+randomGCFig_data <- randomGCFig_data[temp, on = c("speciesCode" = "species")]
 
-fig3 <- ggplot(data = fig3_data, 
-               aes(y = B, x = age, col = speciesLabel)) + 
+randomGCFig <- ggplot(data = randomGCFig_data, 
+                      aes(y = B, x = age, col = speciesLabel)) + 
   geom_line(linewidth = 1.2, alpha = 0.7) + 
-  theme_bw() + 
-  labs(y = "aboveground biomass (g/m2)", 
+  theme_bw(base_size = 10) + 
+  labs(y = "biomass (g/m2)", 
        col = "species") + 
   theme(legend.position = "bottom") + 
   guides(color = guide_legend(nrow = 3, byrow = TRUE))
-ggsave("manuscript_figures/fig3.png", fig3, dpi = 300, width = 8, height = 4)
-googledrive::drive_upload("manuscript_figures/fig3.png", path = gFolder, name = "fig3.png")
-rm(fig3Dat, fig3Spp)
+ggsave("manuscript_figures/randomGCFig.png", randomGCFig, dpi = 600, width = 7, height = 4)
+googledrive::drive_upload("manuscript_figures/randomGCFig.png", path = gFolder, name = "randomGCFig.png", 
+                          overwrite = TRUE)
+rm(randomGCFigDat, randomGCFig_Spp)
 
 ##### Fig 4 ####
 # fig 4 requires a separate factorial with all mortalityshapes, not just 21-25
 # this was created by allowing fewer values of longevity and running with single
 fT <- prepInputs(url = 'https://drive.google.com/file/d/1AeCMmh_rtzxXmqAU8od2b_w5g2cexDRt/view?usp=drive_link', 
-                 targetFile = "factorialTraits_allMortalityShape.csv", fun = "data.table::fread")
+                 targetFile = "factorialTraits_allMortalityShape.csv", fun = "data.table::fread", 
+                 destinationPath = "outputs")
 fB <- prepInputs(url = "https://drive.google.com/file/d/1AeCMmh_rtzxXmqAU8od2b_w5g2cexDRt/view?usp=drive_link", 
-                 targetFile = "factorialBiomass_allMortalityShape.csv", fun = "data.table::fread")
+                 targetFile = "factorialBiomass_allMortalityShape.csv", 
+                 destinationPath = "outputs", fun = "data.table::fread")
 #keep longevity constant for figures
 fT250 <- fT[longevity == 250,]
 fB250 <- fB[speciesCode %in% fT250$species]
@@ -133,7 +140,7 @@ mANPPpropSpp <- fT250[mortalityshape == 15 & growthcurve  == 0.5,]$species
 
 
 leg_theme <- theme(
-  # legend.position = "bottom",
+  legend.position = "bottom",
   legend.key.height = unit(2.5, "mm"),
   legend.key.width  = unit(3.0, "mm"),
   legend.spacing.y  = unit(1.5, "mm"),
@@ -141,16 +148,22 @@ leg_theme <- theme(
   legend.box.margin = margin(t = -4, r = 0, b = 0, l = 0)
 )
 
+#it is much easier to let ggplot do the faceting
+
+
+
 fig4A <- ggplot(fB250[speciesCode %in% growthcurveSpp, ],
                 aes(age, B, group = speciesCode, colour = growthcurve)) +
   geom_line(linewidth = 1, alpha = 0.9) +
-  labs(y = "B", x = "") +
+  labs(y = "Biomass (g/m2)", x = "") +
   scale_colour_viridis_c(
     option = "D",
     breaks = pretty_breaks(3),
     guide = guide_colorbar(direction = "vertical")
   ) +
-  theme_bw() + leg_theme
+  theme_bw(base_size = 10) +  
+  coord_cartesian(ylim = c(0,5000)) +
+  leg_theme
 
 fig4B <- ggplot(fB250[speciesCode %in% mortalityshapeSpp, ],
                 aes(age, B, group = speciesCode, colour = mortalityshape)) +
@@ -161,7 +174,9 @@ fig4B <- ggplot(fB250[speciesCode %in% mortalityshapeSpp, ],
     breaks = pretty_breaks(3),
     guide = guide_colorbar(direction = "vertical")
   ) +
-  theme_bw() + leg_theme
+  theme_bw(base_size = 10) + 
+  coord_cartesian(ylim = c(0,5000)) +
+  leg_theme + theme(axis.text.y = element_blank())
 
 fig4C <- ggplot(fB250[speciesCode %in% mANPPpropSpp, ],
                 aes(age, B, group = speciesCode, colour = mANPPproportion)) +
@@ -172,14 +187,17 @@ fig4C <- ggplot(fB250[speciesCode %in% mANPPpropSpp, ],
     breaks = pretty_breaks(3),
     guide = guide_colorbar(direction = "vertical")
   ) +
-  theme_bw() + leg_theme
+  theme_bw(base_size = 10) + 
+  coord_cartesian(ylim = c(0,5000)) +
+  leg_theme + 
+  theme(axis.text.y = element_blank())
 
 fig4 <- fig4A + fig4B + fig4C
 
 ggsave(
   filename = "manuscript_figures/fig4_growthcurveparam_fullRange.png",
-  plot = fig4_new,
-  width = 7, height = 12, dpi = 300
+  plot = fig4,
+  width = 7, height = 5, dpi = 600
 )
 
 googledrive::drive_upload("manuscript_figures/fig4_growthcurveparam_fullRange.png", overwrite = TRUE,
@@ -195,7 +213,7 @@ factorial_biomass <- list.files(focalOutputPath,
 factorial_biomass <- read_ipc_file(list.files(factorial_biomass, full.names = TRUE)[[1]]) |>
   as.data.table()
 inflationFactorKey <- factorial_biomass[grep("A", speciesCode), .(maxB = max(B)), .(speciesCode)]
-hist(inflationFactorKey$maxB)
+
 inflationFactorKey <- factorial_spp[inflationFactorKey, on = c("species" = "speciesCode")]
 temp <- melt.data.table(inflationFactorKey, id.vars = c("maxB", "species"), 
                         measure.vars =c ("mortalityshape", "growthcurve", "longevity", "mANPPproportion"),
@@ -203,7 +221,8 @@ temp <- melt.data.table(inflationFactorKey, id.vars = c("maxB", "species"),
 
 maxB_plot <- ggplot(temp, aes(y = maxB, x = value)) + geom_jitter() + 
   facet_wrap(~trait, scales = "free_x") + 
-  theme_bw() + 
-  labs(x = "maxB achieved in factorial")
-ggsave(maxB_plot, file = "manuscript_figures/maxB_facetplot.png", dpi = 300, width = 8, height = 8)
-googledrive::drive_upload("manuscript_figures/maxB_facetplot.png", path = gFolder, name = "maxB_facetplot.png")
+  theme_bw(base_size =10) + 
+  labs(y = "maxB achieved in factorial")
+ggsave(maxB_plot, file = "manuscript_figures/maxB_facetplot.png", dpi = 600, width = 7, height = 7)
+googledrive::drive_upload("manuscript_figures/maxB_facetplot.png", path = gFolder, name = "maxB_facetplot.png", 
+                          overwrite = TRUE)
