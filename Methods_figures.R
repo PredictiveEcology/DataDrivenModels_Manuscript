@@ -39,30 +39,30 @@ okabe_ito <- c(
   "#E69F00", # orange
   "#56B4E9", # sky blue
   "#009E73", # bluish green
-  "#D55E00"  # vermillion
+  "#D55E00",  # vermillion
+  "#000"
 )
 
 mortExampleFigA <- ggplot(data = ggData, aes(y = B, col = param, x = age)) +
   geom_line(linewidth = 1.2, linetype = "twodash") +
   theme_bw(base_size = 10) + 
-  labs(y = "Biomass (g/m2)", colour = "Param.: ") + 
+  geom_line(aes(x = NA, y = NA, col = "biomass"), linewidth = 1.2) + 
+  labs(y = "Biomass (g/m2)", colour = "Parameter ") + 
   scale_colour_manual(values = okabe_ito, 
-                      breaks = c("aNPPAct", "mAge", "mBio", "mortality"),
+                      breaks = c("aNPPAct", "mAge", "mBio", "mortality", "biomass"),
                       labels = c(aNPPAct = "ANPP",
                                  mAge = "age-mortality",
                                  mBio = "development-mortality", 
-                                 mortality = "total mortality")) + 
-  guides(colour = guide_legend(nrow = 2)) + 
-  theme(legend.position = "bottom")
-
-
-mortExampleFigB <- ggplot(data = expGC, aes(y = B, x = age)) +
+                                 mortality = "total mortality",
+                                 biomass = "total biomass"))
+  mortExampleFigB <- ggplot(data = expGC, aes(y = B, x = age)) +
   geom_line(linewidth = 1.2) + 
-  theme_bw(base_size = 10) + 
+  theme_bw(base_size = 10) +
+  scale_fill_discrete(name = "Biomass") + 
   labs(y = "Biomass (g/m2)")
 
 mortExampleFig <- mortExampleFigA/mortExampleFigB
-ggsave("manuscript_figures/mortExampleFig.png", mortExampleFig, dpi = 600, width = 5, height = 4)
+ggsave("manuscript_figures/mortExampleFig.png", mortExampleFig, dpi = 600, width = 6, height = 5)
 googledrive::drive_upload("manuscript_figures/mortExampleFig.png", path = gFolder, name = "mortExampleFig.png", 
                           overwrite = TRUE)
 rm(factorial_w_mortality, factorial_spp)
