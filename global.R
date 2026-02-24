@@ -75,7 +75,7 @@ simProject <- SpaDES.project::setupProject(
     sppEquiv <- sppEquiv[LANDIS_traits != ""]
     #this combines engelmann with hybrid spruce for simplicity
     sppEquiv[LandR == "Pice_eng_gla", LandR := "Pice_eng"]
-    sppEquiv <- sppEquiv[!LandR %in% c("Pinu_ban", "Betu_pap", "Lari_lar", "Pinu_ban")]
+    sppEquiv <- sppEquiv[!LandR %in% c("Abie_las", "Betu_pap", "Lari_lar", "Pinu_ban")]
     #the initial landscape is ~ 42% aspen, 17% black spruce, 18% white spruce, 
     # 12% pine, 4% engelmann, 2.5% balsam poplar, and 2.4% larch, 1.4% birch, 
     #0.5% jack pine and 0.01% subalpine fir. So remove those under 2.5%
