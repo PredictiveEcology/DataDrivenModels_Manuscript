@@ -86,9 +86,6 @@ pixelSummaryByThreshold <- function(PixUnderThresh, year, focalOutputPath, singl
   subsetPGs <- data.table(pixelGroup = subsetPGs)
   subsetPGs <- subsetPGs[, .N, .(pixelGroup)]
   
-  
-  subsetPGs <- subsetPGs[, .N, .(pixelGroup)] 
-  
   #this will contain duplicates (potentially)
   CD_focal <- CD_focal[subsetPGs, on = c("pixelGroup")]
 
@@ -110,8 +107,10 @@ pixelSummaryByThreshold <- function(PixUnderThresh, year, focalOutputPath, singl
   CD_single <- CD_single[, .(B = sum(B), N = sum(N)), .(speciesCode, ecoregionGroup)]
   CD_single[, source := "single"]
   
+  output <- rbind(CD_single, CD_focal)
+  output[, Year := year]
   # return
-  return(list(single = CD_single, focal = CD_focal))
+  return(output)
 }
 
 #' Find pixels satisfying initial biomass and competition req.
