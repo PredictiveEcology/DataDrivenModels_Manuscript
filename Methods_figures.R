@@ -55,13 +55,18 @@ mortExampleFigA <- ggplot(data = ggData, aes(y = B, col = param, x = age)) +
                                  mBio = "development-mortality", 
                                  mortality = "total mortality",
                                  biomass = "total biomass"))
-  mortExampleFigB <- ggplot(data = expGC, aes(y = B, x = age)) +
+
+mortExampleFigB <- ggplot(data = expGC, aes(y = B, x = age)) +
   geom_line(linewidth = 1.2) + 
   theme_bw(base_size = 10) +
   scale_fill_discrete(name = "Biomass") + 
   labs(y = "Biomass (g/m2)")
 
 mortExampleFig <- mortExampleFigA/mortExampleFigB
+mortExampleFig <- mortExampleFig + 
+  plot_annotation(tag_levels = 'a', tag_prefix = '(', tag_suffix = ')') & 
+  theme(plot.tag = element_text(face = "bold"))
+
 ggsave("manuscript_figures/mortExampleFig.png", mortExampleFig, dpi = 600, width = 6, height = 5)
 googledrive::drive_upload("manuscript_figures/mortExampleFig.png", path = gFolder, name = "mortExampleFig.png", 
                           overwrite = TRUE)
@@ -83,16 +88,16 @@ factorial_biomass <- list.files(focalOutputPath,
   read_ipc_file() |>
   as.data.table()
 
-set.seed(15)
-#species beginning with A are the single-species cohorts
-randomSp <- sample(factorial_spp[longevity < 400][grep("A", species),]$species, size = 6, replace = FALSE)
+randomSp <- withr::with_seed(15,
+                             #species beginning with A are the single-species cohorts
+                             sample(factorial_spp[longevity < 400][grep("A", species),]$species, size = 6, replace = FALSE)
+)
 # randomSp <- c("A4037", "A675", "A2978", "A2598", "A177", "A261")
 #because there isn't an instance of "zero" biomass that is preserved, manually add them here
 # purely for illustrative purposes
 randomGCFig_Dat <- factorial_biomass[speciesCode %in% randomSp] |> copy()
 randomGCFig_Spp <- factorial_spp[species %in% randomSp][, .(species, longevity)] |>  copy()
 randomGCFig_Spp[, c("age", "B", "speciesCode") := .(longevity, 0, species)]
-
 randomGCFig_data <- rbind(randomGCFig_Spp, randomGCFig_Dat, fill = TRUE)
 randomGCFig_data[, species := NULL]
 
@@ -100,7 +105,7 @@ randomGCFig_data[, species := NULL]
 temp <- factorial_spp[species %in% randomSp,] |> copy()
 temp[, speciesLabel := paste0("g.c.: ", growthcurve, "; m.s.: ", mortalityshape, 
                               "; long.: ", longevity, "; mANPP: ", mANPPproportion)]
-temp[, speciesLabel := paste0("Sp", 1:5, " - ", speciesLabel)]
+temp[, speciesLabel := paste0("Sp", 1:6, " - ", speciesLabel)]
 temp <- temp[, .(species, speciesLabel)]
 randomGCFig_data <- randomGCFig_data[temp, on = c("speciesCode" = "species")]
 
@@ -109,10 +114,10 @@ randomGCFig <- ggplot(data = randomGCFig_data,
   geom_line(linewidth = 1.2, alpha = 0.7) + 
   theme_bw(base_size = 10) + 
   labs(y = "biomass (g/m2)", 
-       col = "species") + 
+       col = "") + 
   theme(legend.position = "bottom") + 
   guides(color = guide_legend(nrow = 3, byrow = TRUE))
-ggsave("manuscript_figures/randomGCFig.png", randomGCFig, dpi = 600, width = 7, height = 4)
+ggsave("manuscript_figures/randomGCFig.png", randomGCFig, dpi = 600, width = 6, height = 4)
 googledrive::drive_upload("manuscript_figures/randomGCFig.png", path = gFolder, name = "randomGCFig.png", 
                           overwrite = TRUE)
 rm(randomGCFigDat, randomGCFig_Spp)
