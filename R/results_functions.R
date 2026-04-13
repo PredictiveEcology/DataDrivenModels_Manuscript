@@ -93,7 +93,7 @@ pixelSummaryByThreshold <- function(PixUnderThresh, year, focalOutputPath, singl
   #track the area too
   CD_focal <- CD_focal[, .(B = B * N), .(speciesCode, pixelGroup, ecoregionGroup, N)]
   CD_focal <- CD_focal[, .(B = sum(B), N = sum(N)), .(speciesCode, ecoregionGroup)]
-  CD_focal[, source := "focal"]
+  CD_focal[, source := "Focal"]
   
   ##### single ####
   subsetPGs <- as.vector(PG_single)[PixUnderThresh]
@@ -105,7 +105,7 @@ pixelSummaryByThreshold <- function(PixUnderThresh, year, focalOutputPath, singl
   
   CD_single <- CD_single[, .(B = B * N), .(speciesCode, pixelGroup, ecoregionGroup, N)]
   CD_single <- CD_single[, .(B = sum(B), N = sum(N)), .(speciesCode, ecoregionGroup)]
-  CD_single[, source := "single"]
+  CD_single[, source := "Single"]
   
   output <- rbind(CD_single, CD_focal)
   output[, Year := year]

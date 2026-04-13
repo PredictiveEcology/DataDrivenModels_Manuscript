@@ -104,7 +104,7 @@ randomGCFig_data[, species := NULL]
 #for figure legend #
 temp <- factorial_spp[species %in% randomSp,] |> copy()
 temp[, speciesLabel := paste0("g.c.: ", growthcurve, "; m.s.: ", mortalityshape, 
-                              "; long.: ", longevity, "; mANPP: ", mANPPproportion)]
+                              "; lng.: ", longevity, "; mANPP: ", mANPPproportion)]
 temp[, speciesLabel := paste0("Sp", 1:6, " - ", speciesLabel)]
 temp <- temp[, .(species, speciesLabel)]
 randomGCFig_data <- randomGCFig_data[temp, on = c("speciesCode" = "species")]
@@ -117,7 +117,7 @@ randomGCFig <- ggplot(data = randomGCFig_data,
        col = "") + 
   theme(legend.position = "bottom") + 
   guides(color = guide_legend(nrow = 3, byrow = TRUE))
-ggsave("manuscript_figures/randomGCFig.png", randomGCFig, dpi = 600, width = 6, height = 4)
+ggsave("manuscript_figures/randomGCFig.png", randomGCFig, dpi = 400, width = 6.5, height = 4)
 googledrive::drive_upload("manuscript_figures/randomGCFig.png", path = gFolder, name = "randomGCFig.png", 
                           overwrite = TRUE)
 rm(randomGCFigDat, randomGCFig_Spp)

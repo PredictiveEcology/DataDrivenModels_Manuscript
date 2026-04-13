@@ -36,12 +36,18 @@ rm(ecoVals, lccs)
 #### figures #####
 
 
+
+# study area Map - in this Results script just because simList used to make it, 
+# even though conceptually a methods figure
+
+
+
 #no stochasticity in species traits, so use rep 1 for simplicity
 singleSpp <- readRDS(file.path(singleOutputPath, "species_year2120.rds"))
 focalSpp <- readRDS(file.path(focalOutputPath, "species_year2120.rds"))
 
-singleSpp[, source := "single"]
-focalSpp[, source := "focal"]
+singleSpp[, source := "Single"]
+focalSpp[, source := "Focal"]
 bothSpp <- rbind(singleSpp, focalSpp) 
 speciesRep <- melt(bothSpp, 
                    id.vars = c("source", "growthCurveSource", "species"), 
@@ -60,8 +66,8 @@ bothSpp[, .(varGC = var(growthcurve), meanGC = mean(growthcurve),
 
 speciesEco_single <- readRDS(file.path(singleOutputPath,  "speciesEcoregion_year2120.rds"))
 speciesEco_focal <- readRDS(file.path(focalOutputPath,  "speciesEcoregion_year2120.rds"))
-speciesEco_focal[, source := "focal"]
-speciesEco_single[, source := "single"]
+speciesEco_focal[, source := "Focal"]
+speciesEco_single[, source := "Single"]
 speciesEco <- rbind(speciesEco_focal, speciesEco_single)
 speciesEco[, N := .N, .(speciesCode)]
 
@@ -73,8 +79,8 @@ fwrite(bothSpp[, .(species, growthcurve, mANPPproportion, mortalityshape, inflat
 ##### pixel-level results ####
 # these are growth curves with all cohorts starting at age 0 - via Biomass_speciesYield
 #first get the colors 
-cols <- LandR::sppEquivalencies_CA[LandR %in% speciesEco$speciesCode & colorHex != "", .(colorHex, LandR)] |>
-  unique()
+cols <- LandR::sppEquivalencies_CA[LandR %in% speciesEco$speciesCode & colorHex != "", .(colorHex, LandR)]
+cols <- unique(cols) #piping this consistently produces a data.table error
 colorHex <- cols$colorHex
 names(colorHex) <- cols$LandR
 
@@ -110,8 +116,8 @@ initialFocalPG <- terra::rast(file.path(focalOutputPath, "pixelGroupMap_year2020
 #1. get Yield tables
 yieldTablesAll <- lapply(list(focalOutputPath, singleOutputPath), 
                          FUN = getBiomassYieldCD)
-yieldTablesAll[[1]][, source := "focal"]
-yieldTablesAll[[2]][, source := "single"]
+yieldTablesAll[[1]][, source := "Focal"]
+yieldTablesAll[[2]][, source := "Single"]
 yieldTablesAll <- rbindlist(yieldTablesAll)
 
 ##pixels under age 10 have incorrect age due to a quirk in Biomass_core
@@ -156,7 +162,7 @@ commonPGs <- commonPGs[order(N, decreasing = TRUE)]
 #use consistent colouring so species are the same between different plots
 # this is the 6 most common ERG
 mostCommonEG_pixelGG <- ggplot(yieldTablesAll[pixelGroup %in% commonPGs[1:6,]$pixelGroup], 
-       aes(y = B/100, x = age, col = speciesCode)) + geom_line() + 
+                               aes(y = B/100, x = age, col = speciesCode)) + geom_line() + 
   theme_bw() + 
   scale_color_manual(name = "species", values = colorHex) + 
   labs(y = "Biomass (Mg/ha)") + 
@@ -169,12 +175,11 @@ if (overwriteFigures) {
   googledrive::drive_upload("manuscript_figures/mostCommonEG_pixelGG.png", path = gFolder, 
                             name = "mostCommonEG_pixelGG.png", overwrite = TRUE)  
 }
-setkey(220)
-six_randomPGs <- sample(randomPGs$pixelGroup, 6)
-# [1] 3593  801 3431  681 2951 3192
+six_randomPGs <- withr::with_seed(221, sample(randomPGs$pixelGroup, 6))
+# [1]  926  906  811 1028  907 1201
 #so - focal does not always produce a more mixed stand. 
 random_pixelGG <- ggplot(yieldTablesAll[pixelGroup %in% six_randomPGs], 
-                               aes(y = B/100, x = age, col = speciesCode)) + geom_line() + 
+                         aes(y = B/100, x = age, col = speciesCode)) + geom_line() + 
   theme_bw() + 
   scale_color_manual(name = "species", values = colorHex) + 
   labs(y = "Biomass (Mg/ha)") + 
@@ -205,7 +210,7 @@ if (overwriteFigures) {
 
 cdLong <-  LandR::addPixels2CohortData(initialFocalCD, pixelGroupMap = initialFocalPG)
 nPixTotal <- length(unique(cdLong$pixelIndex))
-maxB_eco <- speciesEco[source == "focal", .(ecoMaxB = max(maxB)), .(ecoregionGroup)]
+maxB_eco <- speciesEco[source == "Focal", .(ecoMaxB = max(maxB)), .(ecoregionGroup)]
 cdLong[, sumB := sum(B), .(pixelIndex)]
 cdLong <- cdLong[maxB_eco, on = c("ecoregionGroup")]
 hist(cdLong$ecoMaxB - cdLong$sumB, xlab = "growing space (g/m2)")
@@ -215,18 +220,18 @@ cdLong[, nSpp := length(speciesCode), .(pixelIndex)]
 
 #subset pixels from the landscape based on starting biomass and competition
 subsetPGs <- getPixSubset(initialCD = initialFocalCD, initialPG = initialFocalPG,
-                          speciesEcoregion = speciesEco[source == "focal"], prop = 0.25, minSpp = 2)
+                          speciesEcoregion = speciesEco[source == "Focal"], prop = 0.25, minSpp = 2)
 
 LandscapeB_overTime <- lapply(seq(2020, 2120, by = 10), 
-                           pixelSummaryByThreshold, 
-                           PixUnderThresh = subsetPGs,
-                           focalOutputPath = focalOutputPath,
-                           singleOutputPath = singleOutputPath
+                              pixelSummaryByThreshold, 
+                              PixUnderThresh = subsetPGs,
+                              focalOutputPath = focalOutputPath,
+                              singleOutputPath = singleOutputPath
 ) |>
   rbindlist()
 
 LandscapeB_overTime <- LandscapeB_overTime[, .(B = sum(B),meanB = mean(B)), 
-                                               .(speciesCode, source, Year)]
+                                           .(speciesCode, source, Year)]
 
 
 # B is per g/m2 within a pixel, summed by pixel, and a pixel is 6.25 ha (by default)
@@ -258,15 +263,15 @@ propB_summary <- yieldTablesAll[nSpp >1,
                                 .(speciesCode, pixelGroup, source)]
 propB_summary <- propB_summary[, .(isMixed = sum(isMixed), isNotMixed = sum(!isMixed),
                                    isLeading = sum(isLeading), isNotLeading = sum(!isLeading)), 
-                                   .(source, speciesCode)]
+                               .(source, speciesCode)]
 propB_summary[, Leading := isLeading/(isLeading + isNotLeading) * 100]
 propB_summary[, Mixed := isMixed/(isMixed + isNotMixed) * 100]
 propB_summary[, Dominated := 100 - Leading - Mixed]
 
 
 mixedStats <- melt.data.table(propB_summary, 
-                                 id.vars = c("speciesCode", "source"), 
-                                 measure.vars = c("Leading", "Dominated", "Mixed"), 
+                              id.vars = c("speciesCode", "source"), 
+                              measure.vars = c("Leading", "Dominated", "Mixed"), 
                               variable.name = "ValueInStand", value.name = "percent")
 
 # label_map <- c(pctLeading = "species is leading", 
@@ -278,60 +283,17 @@ mixedGG <- ggplot(mixedStats, aes(y = percent, x = speciesCode, fill = ValueInSt
   facet_wrap(~source, nrow = 1) + 
   labs(x = "species", y = "% across all pixelGroups") + 
   scale_fill_discrete(name = "Stand class")
-  # scale_fill_discrete(name = "", labels = c(pctLeading = "Species is leading",
-  #                                           pctMixed = "Stand is mixed"))
+# scale_fill_discrete(name = "", labels = c(pctLeading = "Species is leading",
+#                                           pctMixed = "Stand is mixed"))
 mixedGG
 
+# propB_summary[, lapply(.SD, mean), .SDcol = c("Leading", "Dominated", "Mixed"), .(source)]
+# source   Leading Dominated    Mixed
+# <char>     <num>     <num>    <num>
+#   1:  focal  9.953428  15.30455 74.74203
+# 2: single 24.484779  56.94205 18.57317
 
+#1306020 pixels have data
+#13221 meet this requirement of B
 
-# how prevalent each species was in initial pg?
-# initialAbundance <- unique(yieldTablesAll[, .(speciesCode, pixelGroup)])
-# initialAbundance <- initialAbundance[, .N, .(speciesCode)]
-# initialAbundance
-# speciesCode     N
-# <fctr> <int>
-# 1:    Pice_gla   819
-# 2:    Pice_mar   770
-# 3:    Popu_bal   585
-# 4:    Popu_tre  1264
-# 5:    Pinu_con   607
-# 6:    Pice_eng   386
-
-# #I guess as a percentage change?
-# finalBWide <- data.table::dcast(finalBwithCompetition, speciesCode + ecoregionGroup + N ~ source, value.var ="B")
-# finalBWide[, pctChange := c(focal - single)/single * 100]
-# finalBWide[, rawChange_sum := c(focal - single)]
-# finalBWide[, rawChange_MgPerHa := rawChange_sum/N/100] #
-# 
-# pctBAfterTime <- ggplot(finalBWide, aes(x = pctChange, y = speciesCode)) + 
-#   geom_bar(position = "dodge", stat = "identity") + 
-#   theme_bw() + 
-#   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
-#   labs(x = "change in B by ecoregionGroup under Focal compared to Single (%)",
-#        y = "species") + 
-#   # scale_fill_manual(values = colorHex) + 
-#   facet_wrap(~ecoregionGroup, ncol = 6)
-# ggsave("manuscript_figures/Results_100yrPctByEcoregion.png", pctBAfter100, 
-#        dpi = 300, height = 4, width = 7)
-# googledrive::drive_upload("manuscript_figures/Results_100yrPctByEcoregion.png", path = gFolder, 
-#                           name = "Results_100yrPctByEcoregion.png", overwrite = TRUE)  
-# 
-# rawBAfter100  <- ggplot(finalBWide, aes(x = rawChange, y = speciesCode)) + 
-#   geom_bar(position = "dodge", stat = "identity") + 
-#   theme_bw() + 
-#   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
-#   labs(x = "change in B under Focal compared to Single (Mg)",
-#        y = "species") + 
-#   # scale_fill_manual(values = colorHex) + 
-#   facet_wrap(~ecoregionGroup, ncol = 6, scales = "free_x")
-#   
-# averagedB  <- ggplot(finalBWide[grep("_081", ecoregionGroup, invert = TRUE)], aes(x = rawChange_MgPerHa, y = speciesCode)) + 
-#   geom_bar(position = "dodge", stat = "identity") + 
-#   theme_bw() + 
-#   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
-#   labs(x = "change in B under Focal compared to Single (Mg)",
-#        y = "species") + 
-#   # scale_fill_manual(values = colorHex) + 
-#   facet_wrap(~ecoregionGroup)
-# 
 
