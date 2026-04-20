@@ -7,6 +7,7 @@ Require(arrow)
 Require(terra)
 Require(qs2)
 Require(ggh4x)
+Require(patchwork)
 source("R/results_functions.R")
 
 
@@ -57,10 +58,10 @@ speciesRep <- melt(bothSpp,
                    value.name = "value"
 )
 #for reporting in-text
-bothSpp[, .(varGC = var(growthcurve), meanGC = mean(growthcurve), 
-            varANPP = var(mANPPproportion), meanANP = mean(mANPPproportion),
-            varMS = var(mortalityshape), meanMS = mean(mortalityshape),
-            varIF = var(inflationFactor), meanIF = mean(inflationFactor)), 
+bothSpp[, .(sdGC = sd(growthcurve), meanGC = mean(growthcurve), 
+            sdANPP = sd(mANPPproportion), meanANP = mean(mANPPproportion),
+            sdMS = sd(mortalityshape), meanMS = mean(mortalityshape),
+            sdIF = sd(inflationFactor), meanIF = mean(inflationFactor)), 
         .(source)]
 #longevity has no perceptible difference 
 
@@ -130,13 +131,7 @@ yieldTablesAll <- yieldTablesAll[ecoTable[, .(ecoregionGroup, name)], on = c("ec
 # it is unclear if we want random or not.. alternatively, the most common pairing?
 # but the most common pairings do not contain all species (e.g. no Pice_mariana)
 
-### approach 1 - random samples ####
-#randomly sample PGs, stratified by ecoregionGroup
-setkey(102)
-randomPGs <- yieldTablesAll[, .(pixelGroup = sample(pixelGroup, size = 1)), 
-                            .(ecoregionGroup)]
-
-#### approach 2 -  most common combinations by species ####
+#### approach 1-  most common combinations by species ####
 subCDLong <- LandR::addPixels2CohortData(initialFocalCD, initialFocalPG)
 subCDLong <- subCDLong[, .(pixelIndex, ecoregionGroup, speciesCode)]
 subCDLong[, nSpp := length(unique(speciesCode)), .(pixelIndex)]
@@ -150,14 +145,11 @@ subCDLong <- subCDLong[N == mostCommon, .(ecoregionGroup, combo)]
 bytCD <- qs2::qs_read(file.path(focalOutputPath, 'cohortDataYield/cohortData_year000.qs2'))
 bytCD <- bytCD[, .(combo = paste(unique(speciesCode), collapse = ", ")), .(pixelGroup, ecoregionGroup)]
 mostCommonPGsubset <- bytCD[subCDLong, on = c("ecoregionGroup", "combo")]
-# rm(bytCD, samplePix)
-
 
 # this table contains the most common pairing of species by ERG, their associated PG,
 # and the abundance of each ERG (N)
 commonPGs <- ecoTable[mostCommonPGsubset, on = c("ecoregionGroup")]
 commonPGs <- commonPGs[order(N, decreasing = TRUE)]
-
 
 #use consistent colouring so species are the same between different plots
 # this is the 6 most common ERG
@@ -167,7 +159,9 @@ mostCommonEG_pixelGG <- ggplot(yieldTablesAll[pixelGroup %in% commonPGs[1:6,]$pi
   scale_color_manual(name = "species", values = colorHex) + 
   labs(y = "Biomass (Mg/ha)") + 
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5))+
-  ggh4x::facet_nested_wrap(vars(name, source), nrow = 3, ncol = 4)
+  ggh4x::facet_nested_wrap(vars(name, source), nrow = 3, ncol = 4) + 
+  plot_annotation(tag_levels = 'a', tag_prefix = '(', tag_suffix = ')') & 
+  theme(plot.tag = element_text(face = "bold"))
 
 if (overwriteFigures) {
   ggsave("manuscript_figures/mostCommonEG_pixelGG.png", mostCommonEG_pixelGG, 
@@ -175,8 +169,14 @@ if (overwriteFigures) {
   googledrive::drive_upload("manuscript_figures/mostCommonEG_pixelGG.png", path = gFolder, 
                             name = "mostCommonEG_pixelGG.png", overwrite = TRUE)  
 }
+### approach 2 - random samples ####
+#randomly sample PGs, stratified by ecoregionGroup
+randomPGs <- withr::with_seed(15, yieldTablesAll[, .(pixelGroup = sample(pixelGroup, size = 1)), 
+                                             .(ecoregionGroup)]
+)
+
 six_randomPGs <- withr::with_seed(221, sample(randomPGs$pixelGroup, 6))
-# [1]  926  906  811 1028  907 1201
+# [1]  926  783 1095 1041  907 1348
 #so - focal does not always produce a more mixed stand. 
 random_pixelGG <- ggplot(yieldTablesAll[pixelGroup %in% six_randomPGs], 
                          aes(y = B/100, x = age, col = speciesCode)) + geom_line() + 
@@ -184,7 +184,9 @@ random_pixelGG <- ggplot(yieldTablesAll[pixelGroup %in% six_randomPGs],
   scale_color_manual(name = "species", values = colorHex) + 
   labs(y = "Biomass (Mg/ha)") + 
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5))+
-  ggh4x::facet_nested_wrap(vars(name, source), nrow = 3, ncol = 4)
+  ggh4x::facet_nested_wrap(vars(name, source), nrow = 3, ncol = 4) + 
+  plot_annotation(tag_levels = list(""), tag_prefix = '(b)') & 
+  theme(plot.tag = element_text(face = "bold"))
 
 if (overwriteFigures) {
   ggsave("manuscript_figures/random_pixelGG.png", random_pixelGG, 
@@ -285,7 +287,14 @@ mixedGG <- ggplot(mixedStats, aes(y = percent, x = speciesCode, fill = ValueInSt
   scale_fill_discrete(name = "Stand class")
 # scale_fill_discrete(name = "", labels = c(pctLeading = "Species is leading",
 #                                           pctMixed = "Stand is mixed"))
-mixedGG
+if (overwriteFigures) {
+  ggsave("manuscript_figures/standComposition.png", mixedGG, dpi = 300, width = 7, height = 4)
+  googledrive::drive_upload("manuscript_figures/standComposition.png", path = gFolder, 
+                            name = "standComposition.png", overwrite = TRUE)
+}
+
+
+
 
 # propB_summary[, lapply(.SD, mean), .SDcol = c("Leading", "Dominated", "Mixed"), .(source)]
 # source   Leading Dominated    Mixed

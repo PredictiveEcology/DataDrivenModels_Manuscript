@@ -153,10 +153,6 @@ leg_theme <- theme(
   legend.box.margin = margin(t = -4, r = 0, b = 0, l = 0)
 )
 
-#it is much easier to let ggplot do the faceting
-
-
-
 fig4A <- ggplot(fB250[speciesCode %in% growthcurveSpp, ],
                 aes(age, B, group = speciesCode, colour = growthcurve)) +
   geom_line(linewidth = 1, alpha = 0.9) +
@@ -198,6 +194,9 @@ fig4C <- ggplot(fB250[speciesCode %in% mANPPpropSpp, ],
   theme(axis.text.y = element_blank())
 
 fig4 <- fig4A + fig4B + fig4C
+fig4 <- fig4 + 
+  plot_annotation(tag_levels = 'a', tag_prefix = '(', tag_suffix = ')') & 
+  theme(plot.tag = element_text(face = "bold"))
 
 ggsave(
   filename = "manuscript_figures/fig4_growthcurveparam_fullRange.png",
