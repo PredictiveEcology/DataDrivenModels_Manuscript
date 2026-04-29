@@ -55,7 +55,6 @@ simProject <- SpaDES.project::setupProject(
     # EPSG:3348 (NAD83(CSRS) / Statistics Canada Lambert) are commonly used for large areas of Canada. 
     sa <- sa[sa$ECOREGION %in% c(137,138),] |> 
       terra::project(targetCRS) 
-    #980 is in the Fraser Basin ecoregion - it conveniently has no Douglas-fir
     #buffer it for dispersal
     sa <- terra::aggregate(sa)
     return(sa)
