@@ -14,8 +14,26 @@ source("R/results_functions.R")
 gFolder <- googledrive::as_id("https://drive.google.com/drive/folders/1-jrQpHIyUPsveTH5gw1fsdyd3txj8TvP?usp=drive_link")
 singleOutputPath <- "outputs/single"
 focalOutputPath <- "outputs/focal"
+
+if (FALSE) {
+  Require::Require("archive")
+  focalArchive <- archive_write_dir(dir = "outputs/focal", 
+                                    archive = "outputs/focal.zip")
+  singleArchive <- archive_write_dir(dir = "outputs/single", 
+                                     archive = "outputs/single.zip")
+  googledrive::drive_upload(media = "outputs/single.zip", path = gFolder, 
+                            name = "single.zip")
+  googledrive::drive_upload(media = "outputs/focal.zip", path = gFolder, 
+                            name = "focal.zip")
+}
+
 ecoregionMap <- rast(file.path(focalOutputPath, "ecoregionMap_year2120.tif"))
 overwriteFigures <- FALSE
+
+
+
+
+
 
 #### set up #####
 # fix names of ecoregionGroups
