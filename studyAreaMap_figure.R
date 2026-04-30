@@ -1,105 +1,193 @@
 library(Require)
 #this figure was added last and separately
 Require::Require("reproducible")
-Require(sf)
-Require(ggplot2)
-Require(ggspatial)
+Require("sf")
+Require("terra")
+Require("ggplot2")
+Require("ggspatial")
 Require("tmap")
-
+Require("tidyterra")
+Require("scales")
+Require("PredictiveEcology/climateData")
+Require("shadowtext")
+Require("grid")
 ##version 1 ####
 data("World", package = "tmap")
 
+options("reproducible.cachePath" = "cache")
 
-sa <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/region/ecoregion_shp.zip", 
-                               destinationPath = "inputs", 
-                               fun = "terra::vect"
-)
-sa$REGION_NOM <- NULL #ditch french -it causes the invalid multibyte
-
-targetCRS <- terra::crs("EPSG:3348")# (NAD83(CSRS) / Statistics Canada Lambert) are commonly used for large areas of Canada. 
-# EPSG:3348 (NAD83(CSRS) / Statistics Canada Lambert) are commonly used for large areas of Canada. 
-sa <- sa[sa$ECOREGION %in% c(137,138),] |> 
-  terra::project(targetCRS)  |>
-  sf::st_as_sf()
-
-bbox <- st_bbox(sa)
-Canada  <- prepInputs(url = 'https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lpr_000b21a_e.zip', 
-                      destinationPath = "inputs") |>
-  st_transform(targetCRS)
-can_bbox <- st_bbox(Canada)
+#get data
 # 
-# na <- World[World$name %in% c("United States of America", "Canada"),] |>
-#   st_transform(targetCRS)
-# na <- st_crop(na, can_bbox)
+# sa <- reproducible::prepInputs(url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/region/ecoregion_shp.zip", 
+#                                destinationPath = "inputs", 
+#                                fun = "terra::vect"
+# )
+# 
+# sa$REGION_NOM <- NULL #ditch french -it causes the invalid multibyte
+# 
 
-na <- prepInputs(url = paste0("https://www.cec.org/files/atlas_layers/0_reference/",
-                              "0_01_political_boundaries/politicalboundaries_shapefile.zip"),
-                 destinationPath = "inputs", 
-                 projectTo = targetCRS)
+# ---- Projection ----
+targetCRS <- st_crs("EPSG:3348")  # Canada Albers Equal Area
+
+# ---- Study area ----
+sa <- reproducible::prepInputs(
+  url = "https://sis.agr.gc.ca/cansis/nsdb/ecostrat/region/ecoregion_shp.zip",
+  destinationPath = "inputs",
+  fun = "terra::vect"
+)
+sa <- sa[sa$ECOREGION %in% c(137, 138),] 
+
+# ---- Political boundaries ----
+na <- prepInputs(
+  url = paste0(
+    "https://www.cec.org/files/atlas_layers/0_reference/",
+    "0_01_political_boundaries/politicalboundaries_shapefile.zip"
+  ),
+  destinationPath = "inputs"
+)
+
+ca <- na[na$COUNTRY == "CAN",]
+# ---- Define a Canada-centered bbox
+can_bbox <- st_bbox(ca)
+
+na <- na[na$COUNTRY %in% c("USA", "CAN"),]
+na <- na[!na$NAME_En %in% c("Hawaii", "Puerto Rico"),]
+
 na <- st_crop(na, can_bbox)
-# Build graticules in lon/lat, then project
+
+sa <- st_as_sf(sa) |>
+  st_transform(st_crs(na))
+sa_bbox <- st_bbox(sa)
+sa_inset <- postProcess(na, cropTo = sa) |>
+  sf::st_union()
+
+# ---- Simple graticules (cheap & correct) ----
 graticules <- st_graticule(
-  lon = seq(-160, -40, by = 10),
-  lat = seq(40,  80,  by = 10),
-  crs = st_crs(4326)
+  lat = seq(40, 80, by = 10),
+  lon = seq(-160, -40, by = 20),
+  crs = 4326
 ) |>
-  st_transform(targetCRS) |>
+  st_transform(crs(na)) |>
   st_crop(can_bbox)
 
 
-
-# 3. Build the figure
-MapFigure <- ggplot() +
-  scale_fill_brewer(
-    palette = "Set2",
-    name = "Ecoregion"
-  ) +
-  geom_sf(
-    data = na,
-    fill = "grey93",
-    color = "grey70",
-    linewidth = 0.2
-  ) +
-  geom_sf(
-    data = graticules,
-    color = "grey85",
-    linewidth = 0.3,
-    linetype = "dotted"
-  ) +
-  # Study areas
-  geom_sf(
-    aes(fill = REGION_NAM),
-    data = sa,
-    color = "black",
-    linewidth = 0.4,
-    alpha = 0.85
-  ) +
-  annotation_scale(location = "bl", width_hint = 0.25, 
-                   bar_cols = c("darkgrey", "grey95")) +
-  annotation_north_arrow(
-    location = "tl",
-    height = unit(1.2, "cm"),
-    width  = unit(0.7, "cm"),
-    style = north_arrow_orienteering(fill = c("white", "darkgrey"))
-  ) +
-  coord_sf(crs = targetCRS, expand = FALSE) +
+# ---- Plot ----
+insetMap <- ggplot() +
+  geom_sf(data = na,
+          fill = "grey93", 
+          color = "grey70", 
+          linewidth = 0.2) +
+  geom_sf(data = graticules, color = "grey85", 
+          linewidth = 0.3, linetype = "dotted") +
+  geom_sf(data = sa_inset, color = "black", alpha = 0.8, linewidth = 0.4) +
+  coord_sf(xlim = c(can_bbox["xmin"], can_bbox["xmax"]),
+           ylim = c(can_bbox["ymin"], can_bbox["ymax"]),
+           expand = FALSE) +
   theme_classic() +
   theme(
-    # axis.text   = element_blank(),
-    # axis.ticks  = element_blank(),
-    # axis.title  = element_blank(),
-    legend.position = c(0.82, 0.78),
-    legend.background = element_rect(
-      fill = alpha("white", 0.8),
-      color = NA
-    )
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5),
+    plot.background = element_rect(fill = "white", colour = NA)
 )
 
+insetMap
+# ggsave(
+#   plot = insetMap,
+#   filename = "manuscript_figures/studyAreaMap.png",
+#   width  = 170,
+#   height = 130,
+#   units  = "mm"
+# )
+
+#inset map could use some text saying "Canada"
+
+# 1. Ensure everything is in Web Mercator -------------------------------
+
+# sa_3857       <- st_transform(sa, 3857)
+# sal_bbox_3857 <- st_bbox(st_transform(sal, 3857))
+
+# 2. Build map ------------------------------------------------------------
+targetCRS_WebMercator <- terra::crs("EPSG:3857") 
+sa <- st_transform(sa, targetCRS_WebMercator)
+
+sal <- st_buffer(sa, 200000)
+sal_bbox <- st_bbox(sal)
+
+mainMap <- ggplot() +
+  
+  coord_sf(
+    crs = 3857,
+    xlim = sal_bbox[c("xmin", "xmax")],
+    ylim = sal_bbox[c("ymin", "ymax")],
+    expand = FALSE
+  ) +
+  
+  # Basemap tiles
+  basemaps::basemap_gglayer(
+    sal_bbox,
+    map_service = "carto",
+    map_type = "voyager_no_labels"
+    ) +
+  scale_fill_identity(guide = "none") + 
+  # Study area outline
+  geom_sf(
+    data = sa,
+    fill = NA,
+    alpha = 0.6,
+    color = "grey48",
+    linewidth = 0.6,
+    inherit.aes = FALSE
+  ) +
+  geom_shadowtext(
+    data = sa,
+    inherit.aes = FALSE,
+    aes(label = REGION_NAM, 
+        geometry = geometry),
+    stat = "sf_coordinates",
+    colour = "darkgreen",
+    bg.colour = "white",
+    bg.r = 0.15,
+    size = 4,
+
+  ) +
+  # Scale bar
+  annotation_scale(
+    location = "bl",
+    width_hint = 0.25
+  ) +
+  theme_classic() +
+  theme(
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  )
+
+
+#make the inset
+
+
+
+mainMap +
+  annotation_custom(
+    grob = ggplotGrob(insetMap),
+    xmin = 0.05 * diff(layer_scales(mainMap)$x$range$range) + 
+      layer_scales(mainMap)$x$range$range[1],
+    xmax = 0.25 * diff(layer_scales(mainMap)$x$range$range) + 
+      layer_scales(mainMap)$x$range$range[1],
+    ymin = 0.05 * diff(layer_scales(mainMap)$y$range$range) + 
+      layer_scales(mainMap)$y$range$range[1],
+    ymax = 0.25 * diff(layer_scales(mainMap)$y$range$range) + 
+      layer_scales(mainMap)$y$range$range[1]
+  )
+
+
+
 ggsave(
-  plot = MapFigure,
+  plot = mainMap,
   filename = "manuscript_figures/studyAreaMap.png",
   width  = 170,
   height = 130,
   units  = "mm"
 )
-
