@@ -167,22 +167,28 @@ mainMap <- ggplot() +
 
 #make the inset
 
+bb  <- sal_bbox   # any sf object already used in mainMap
+xspan <- bb["xmax"] - bb["xmin"]
+yspan <- bb["ymax"] - bb["ymin"]
+
+inset_xmin <- bb["xmin"] + 0.01 * xspan
+inset_xmax <- bb["xmin"] + 0.35 * xspan
+
+inset_ymin <- bb["ymax"] - 0.35 * yspan
+inset_ymax <- bb["ymax"] - 0.01 * yspan
 
 
-mainMap +
+
+finalMap <- mainMap +
   annotation_custom(
     grob = ggplotGrob(insetMap),
-    xmin = 0.05 * diff(layer_scales(mainMap)$x$range$range) + 
-      layer_scales(mainMap)$x$range$range[1],
-    xmax = 0.25 * diff(layer_scales(mainMap)$x$range$range) + 
-      layer_scales(mainMap)$x$range$range[1],
-    ymin = 0.05 * diff(layer_scales(mainMap)$y$range$range) + 
-      layer_scales(mainMap)$y$range$range[1],
-    ymax = 0.25 * diff(layer_scales(mainMap)$y$range$range) + 
-      layer_scales(mainMap)$y$range$range[1]
+    xmin = inset_xmin,
+    xmax = inset_xmax,
+    ymin = inset_ymin,
+    ymax = inset_ymax
   )
 
-
+finalMap
 
 ggsave(
   plot = mainMap,
