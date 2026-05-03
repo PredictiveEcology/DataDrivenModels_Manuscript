@@ -11,10 +11,14 @@ Require("scales")
 Require("PredictiveEcology/climateData")
 Require("shadowtext")
 Require("grid")
+Require("googledrive")
+
+options("reproducible.cachePath" = "cache")
+gFolder <- googledrive::as_id("https://drive.google.com/drive/folders/1-jrQpHIyUPsveTH5gw1fsdyd3txj8TvP?usp=drive_link")
+
 ##version 1 ####
 data("World", package = "tmap")
 
-options("reproducible.cachePath" = "cache")
 
 #get data
 # 
@@ -92,7 +96,7 @@ insetMap <- ggplot() +
     plot.background = element_rect(fill = "white", colour = NA)
 )
 
-insetMap
+# insetMap
 # ggsave(
 #   plot = insetMap,
 #   filename = "manuscript_figures/studyAreaMap.png",
@@ -113,20 +117,25 @@ targetCRS_WebMercator <- terra::crs("EPSG:3857")
 sa <- st_transform(sa, targetCRS_WebMercator)
 
 sal <- st_buffer(sa, 200000)
-sal_bbox <- st_bbox(sal)
+sal_bbox <- st_bbox(sal) 
+#this controls the map extent. nudge it 5% to the east by moving extent west
+#this opens a space for the inset
+sal_bbox_nudged <- sal_bbox
+sal_bbox_nudged[[1]] <- sal_bbox[[1]] * 1.03
+sal_bbox_nudged[[3]] <- sal_bbox[[3]] * 1.03
+
 
 mainMap <- ggplot() +
-  
   coord_sf(
     crs = 3857,
-    xlim = sal_bbox[c("xmin", "xmax")],
-    ylim = sal_bbox[c("ymin", "ymax")],
+    xlim = sal_bbox_nudged[c("xmin", "xmax")],
+    ylim = sal_bbox_nudged[c("ymin", "ymax")],
     expand = FALSE
   ) +
   
   # Basemap tiles
   basemaps::basemap_gglayer(
-    sal_bbox,
+    sal_bbox_nudged, 
     map_service = "carto",
     map_type = "voyager_no_labels"
     ) +
@@ -159,15 +168,15 @@ mainMap <- ggplot() +
   ) +
   theme_classic() +
   theme(
-    axis.text  = element_blank(),
-    axis.ticks = element_blank(),
+    # axis.text  = element_blank(),
+    # axis.ticks = element_blank(),
     axis.title = element_blank()
   )
 
 
 #make the inset
-
-bb  <- sal_bbox   # any sf object already used in mainMap
+#
+bb  <- sal_bbox_nudged   # any sf object already used in mainMap
 xspan <- bb["xmax"] - bb["xmin"]
 yspan <- bb["ymax"] - bb["ymin"]
 
@@ -187,13 +196,18 @@ finalMap <- mainMap +
     ymin = inset_ymin,
     ymax = inset_ymax
   )
-
-finalMap
+# 
+# finalMap
 
 ggsave(
-  plot = mainMap,
+  plot = finalMap,
   filename = "manuscript_figures/studyAreaMap.png",
   width  = 170,
   height = 130,
   units  = "mm"
 )
+
+
+
+googledrive::drive_upload("manuscript_figures/studyAreaMap.png", overwrite = TRUE,
+                          path = gFolder, name = "studyAreaMap.png")
